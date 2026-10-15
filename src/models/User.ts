@@ -1,0 +1,17 @@
+import mongoose, { Schema, type InferSchemaType } from "mongoose";
+
+const UserSchema = new Schema(
+  {
+    name: { type: String, required: true, maxlength: 80 },
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
+    passwordHash: { type: String, required: true },
+    emailVerified: { type: Boolean, default: false },
+    theme: { type: String, enum: ["light", "dark", "system"], default: "system" },
+    timezone: { type: String, default: "UTC" },
+    status: { type: String, enum: ["active", "suspended"], default: "active" },
+  },
+  { timestamps: true },
+);
+
+export type UserDoc = InferSchemaType<typeof UserSchema> & { _id: mongoose.Types.ObjectId };
+export const User = mongoose.models.User ?? mongoose.model("User", UserSchema);
