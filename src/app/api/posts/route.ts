@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHash, randomBytes } from "node:crypto";
+import mongoose from "mongoose";
 import { z } from "zod";
 import { dbConnect } from "@/lib/db/mongoose";
 import { Post, PostDestination } from "@/models/Post";
@@ -31,8 +32,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid post." }, { status: 400 });
   }
   await dbConnect();
+  // Reject non-ObjectId references with a 400 — never let Mongoose throw a CastError 500.
+  const ids = parsed.data.accountIds.filter((id) => mongoose.isValidObjectId(id));
+  if (ids.length !== parsed.data.accountIds.length) {
+    return NextResponse.json(
+      { error: "Select destinations from your connected accounts list." },
+      { status: 400 },
+    );
+  }
   // Ownership check: every destination must belong to the caller.
-  const accounts = await SocialAccount.find({ _id: { $in: parsed.data.accountIds }, ownerId: uid }).lean();
+  const accounts = await SocialAccount.find({ _id: { $in: ids }, ownerId: uid }).lean();
   if (accounts.length !== parsed.data.accountIds.length) {
     return NextResponse.json({ error: "One or more accounts do not belong to you." }, { status: 403 });
   }
