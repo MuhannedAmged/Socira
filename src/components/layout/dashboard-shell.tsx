@@ -16,7 +16,7 @@ import {
   IconSettings,
   IconUsers,
 } from "@tabler/icons-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -36,7 +36,21 @@ const NAV = [
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem("socira:sidebar") === "collapsed";
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("socira:sidebar", collapsed ? "collapsed" : "expanded");
+    } catch {
+      // Storage unavailable (private mode) — sidebar still works for the session.
+    }
+  }, [collapsed]);
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
