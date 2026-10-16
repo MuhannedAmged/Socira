@@ -8,6 +8,10 @@ const UserSchema = new Schema(
     emailVerified: { type: Boolean, default: false },
     theme: { type: String, enum: ["light", "dark", "system"], default: "system" },
     timezone: { type: String, default: "UTC" },
+    preferences: {
+      emailOnPublish: { type: Boolean, default: true },
+      emailOnFailure: { type: Boolean, default: true },
+    },
     status: { type: String, enum: ["active", "suspended"], default: "active" },
   },
   { timestamps: true },

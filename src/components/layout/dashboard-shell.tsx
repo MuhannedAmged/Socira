@@ -48,7 +48,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         )}
       >
         <div className="flex h-16 items-center gap-2 border-b border-border px-4">
-          <Link href="/dashboard" className="flex items-center gap-2 font-bold">
+          <Link
+            href="/dashboard"
+            className={cn("flex items-center gap-2 font-bold", collapsed && "w-full justify-center")}
+            title={collapsed ? "Socira home" : undefined}
+          >
             <IconHexagonFilled className="size-6 shrink-0" aria-hidden />
             {!collapsed && <span className="text-[16px] tracking-tight">Socira</span>}
           </Link>
@@ -76,13 +80,21 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <div className="flex items-center gap-2 border-t border-border p-3">
-          {!collapsed && <ThemeToggle />}
+        <div
+          className={cn(
+            "flex gap-2 border-t border-border p-3",
+            collapsed ? "flex-col items-center" : "flex-row items-center",
+          )}
+        >
+          <span title={collapsed ? "Toggle theme" : undefined} className={cn(collapsed && "flex justify-center")}>
+            <ThemeToggle />
+          </span>
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setSidebarCollapsed((v) => !v)}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             <IconLayoutSidebarLeftCollapse className="size-4" />
           </Button>
