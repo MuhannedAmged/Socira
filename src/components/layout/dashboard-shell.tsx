@@ -16,8 +16,8 @@ import {
   IconSettings,
   IconUsers,
 } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { useSidebarCollapsed, setSidebarCollapsed } from "@/lib/hooks/use-sidebar-state";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -36,21 +36,7 @@ const NAV = [
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
-    try {
-      return window.localStorage.getItem("socira:sidebar") === "collapsed";
-    } catch {
-      return false;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem("socira:sidebar", collapsed ? "collapsed" : "expanded");
-    } catch {
-      // Storage unavailable (private mode) — sidebar still works for the session.
-    }
-  }, [collapsed]);
+  const collapsed = useSidebarCollapsed();
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
@@ -95,7 +81,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setCollapsed((v) => !v)}
+            onClick={() => setSidebarCollapsed((v) => !v)}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             <IconLayoutSidebarLeftCollapse className="size-4" />

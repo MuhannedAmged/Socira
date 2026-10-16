@@ -2,6 +2,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
 const COOKIE = "socira_session";
+export const SESSION_COOKIE = COOKIE;
 const MAX_AGE = 60 * 60 * 24 * 14; // 14 days
 
 function secret(): Uint8Array {

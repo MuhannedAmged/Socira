@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { IconHexagonFilled } from "@tabler/icons-react";
+import { cookies } from "next/headers";
+import { IconArrowRight, IconHexagonFilled } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SESSION_COOKIE } from "@/lib/auth/session";
 
 const links = [
   { href: "#platforms", label: "Platforms" },
@@ -11,7 +13,9 @@ const links = [
   { href: "#faq", label: "FAQ" },
 ];
 
-export function SiteHeader() {
+export async function SiteHeader() {
+  const jar = await cookies();
+  const authed = Boolean(jar.get(SESSION_COOKIE)?.value);
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
@@ -35,12 +39,22 @@ export function SiteHeader() {
         </nav>
         <div className="ml-auto flex items-center gap-2">
           <ThemeToggle />
-          <Link href="/login" className="hidden sm:block">
-            <Button variant="ghost">Sign in</Button>
-          </Link>
-          <Link href="/register">
-            <Button>Get started</Button>
-          </Link>
+          {authed ? (
+            <Link href="/dashboard">
+              <Button>
+                Dashboard <IconArrowRight />
+              </Button>
+            </Link>
+          ) : (
+            <>
+              <Link href="/login" className="hidden sm:block">
+                <Button variant="ghost">Sign in</Button>
+              </Link>
+              <Link href="/register">
+                <Button>Get started</Button>
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </header>
