@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input, Label } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useTheme, type Theme } from "@/components/theme-provider";
+import { setCurrentUser } from "@/lib/hooks/use-current-user";
 import { cn } from "@/lib/utils";
 
 interface Me {
@@ -119,6 +120,7 @@ export default function SettingsPage() {
         return;
       }
       setMe(data.user);
+      setCurrentUser({ name: data.user.name, email: data.user.email });
       setNotice({ ok: true, text: successText });
     } finally {
       setSaving(false);

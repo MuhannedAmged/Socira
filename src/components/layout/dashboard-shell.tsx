@@ -18,6 +18,7 @@ import {
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { useSidebarCollapsed, setSidebarCollapsed } from "@/lib/hooks/use-sidebar-state";
+import { useCurrentUser, accountInitial } from "@/lib/hooks/use-current-user";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -37,6 +38,7 @@ const NAV = [
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const collapsed = useSidebarCollapsed();
+  const user = useCurrentUser();
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
@@ -119,9 +121,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 <IconBell />
               </Button>
             </Link>
-            <Link href="/settings" aria-label="Profile settings">
+            <Link href="/settings" aria-label="Profile settings" title={user?.name || undefined}>
               <span className="flex size-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-                S
+                {accountInitial(user)}
               </span>
             </Link>
           </div>
