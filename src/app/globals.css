@@ -102,6 +102,54 @@ p {
   color: var(--background);
 }
 
+/* ——— scrollbars: thin pill on a transparent track ——— */
+:root {
+  --scrollbar-thumb: oklch(15% 0 0 / 0.16);
+  --scrollbar-thumb-hover: oklch(15% 0 0 / 0.3);
+  --scrollbar-thumb-active: oklch(15% 0 0 / 0.42);
+}
+
+.dark {
+  --scrollbar-thumb: rgb(255 255 255 / 0.14);
+  --scrollbar-thumb-hover: rgb(255 255 255 / 0.26);
+  --scrollbar-thumb-active: rgb(255 255 255 / 0.38);
+}
+
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  min-height: 40px;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-color: var(--scrollbar-thumb);
+  background-clip: content-box;
+  transition: background-color 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--scrollbar-thumb-active);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* subtle layered shadow tokens (shadows over borders) */
 .shadow-surface {
   box-shadow:
