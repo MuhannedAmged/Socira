@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { IconSend, IconDeviceFloppy, IconAlertCircle, IconLoader2, IconPlugConnected } from "@tabler/icons-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
@@ -21,6 +22,7 @@ interface ConnectedAccount {
 }
 
 export default function ComposePage() {
+  const router = useRouter();
   const [content, setContent] = useState("");
   const [accounts, setAccounts] = useState<ConnectedAccount[] | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
@@ -30,7 +32,13 @@ export default function ComposePage() {
   useEffect(() => {
     let cancelled = false;
     fetch("/api/accounts")
-      .then((r) => r.json())
+      .then((r) => {
+        if (r.status === 401) {
+          router.replace("/login?next=/compose");
+          return { accounts: [] };
+        }
+        return r.json();
+      })
       .then((data) => {
         if (cancelled) return;
         const list: ConnectedAccount[] = Array.isArray(data.accounts) ? data.accounts : [];
@@ -43,7 +51,7 @@ export default function ComposePage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
 
   const selectedPlatforms = useMemo(
     () =>

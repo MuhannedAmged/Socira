@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { IconLoader2, IconPlugConnected, IconTrash } from "@tabler/icons-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -19,16 +20,23 @@ interface ConnectedAccount {
 }
 
 export default function AccountsPage() {
+  const router = useRouter();
   const [accounts, setAccounts] = useState<ConnectedAccount[] | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = useCallback(() => {
     fetch("/api/accounts")
-      .then((r) => r.json())
+      .then((r) => {
+        if (r.status === 401) {
+          router.replace("/login?next=/accounts");
+          return { accounts: [] };
+        }
+        return r.json();
+      })
       .then((data) => setAccounts(Array.isArray(data.accounts) ? data.accounts : []))
       .catch(() => setAccounts([]));
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     load();

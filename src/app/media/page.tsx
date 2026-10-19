@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   IconCloudUpload,
   IconFile,
@@ -72,6 +73,7 @@ function videoDuration(file: File): Promise<number | null> {
 }
 
 export default function MediaPage() {
+  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<MediaItem[] | null>(null);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
@@ -81,10 +83,16 @@ export default function MediaPage() {
 
   const load = useCallback(() => {
     fetch("/api/media")
-      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((r) => {
+        if (r.status === 401) {
+          router.replace("/login?next=/media");
+          return { items: [] };
+        }
+        return r.ok ? r.json() : { items: [] };
+      })
       .then((data) => setItems(Array.isArray(data.items) ? data.items : []))
       .catch(() => setItems([]));
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     load();

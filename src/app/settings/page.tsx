@@ -81,7 +81,13 @@ export default function SettingsPage() {
 
   const load = useCallback(() => {
     fetch("/api/auth/me")
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => {
+        if (r.status === 401) {
+          router.replace("/login?next=/settings");
+          return null;
+        }
+        return r.ok ? r.json() : null;
+      })
       .then((data) => {
         if (!data?.user) return;
         const u: Me = data.user;
@@ -92,7 +98,7 @@ export default function SettingsPage() {
       })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     load();

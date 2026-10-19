@@ -34,7 +34,10 @@ export default function LoginPage() {
       setServerError(data.error ?? "Sign-in failed. Check your credentials.");
       return;
     }
-    router.push("/dashboard");
+    const params = new URLSearchParams(window.location.search);
+    const next = params.get("next");
+    const target = next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+    router.push(target);
   }
 
   return (
