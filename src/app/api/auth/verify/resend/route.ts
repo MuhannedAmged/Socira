@@ -5,6 +5,7 @@ import { User } from "@/models/User";
 import { EmailVerification } from "@/models/library";
 import { sendVerificationEmail } from "@/lib/email/resend";
 import { rateLimit } from "@/lib/rate-limit/memory";
+import { rateKey } from "@/lib/http/request";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -15,7 +16,10 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid email." }, { status: 400 });
-  if (!rateLimit(`resend:${parsed.data.email}`, 3, 10 * 60_000).ok) {
+  if (
+    !rateLimit(rateKey("resend:ip", req), 10, 10 * 60_000).ok ||
+    !rateLimit(rateKey("resend:account", req, parsed.data.email), 3, 10 * 60_000).ok
+  ) {
     return NextResponse.json({ error: "Too many resends. Wait a few minutes." }, { status: 429 });
   }
   await dbConnect();

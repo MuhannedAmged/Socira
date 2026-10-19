@@ -5,7 +5,7 @@ import { z } from "zod";
 import { dbConnect } from "@/lib/db/mongoose";
 import { Post, PostDestination } from "@/models/Post";
 import { SocialAccount } from "@/models/SocialAccount";
-import { sessionUserId } from "@/lib/auth/session";
+import { activeSessionUserId } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 
@@ -16,7 +16,7 @@ const createSchema = z.object({
 });
 
 export async function GET() {
-  const uid = await sessionUserId();
+  const uid = await activeSessionUserId();
   if (!uid) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   await dbConnect();
   const posts = await Post.find({ ownerId: uid }).sort({ createdAt: -1 }).limit(50).lean();
@@ -24,7 +24,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const uid = await sessionUserId();
+  const uid = await activeSessionUserId();
   if (!uid) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   const body = await req.json().catch(() => null);
   const parsed = createSchema.safeParse(body);

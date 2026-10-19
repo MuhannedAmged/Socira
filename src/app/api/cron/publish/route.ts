@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db/mongoose";
 import { PostDestination } from "@/models/Post";
+import { safeEqual } from "@/lib/security/crypto";
 
 export const runtime = "nodejs";
 
@@ -8,7 +9,8 @@ export const runtime = "nodejs";
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET ?? "";
   const provided = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
-  if (!secret || provided !== secret) {
+  // Constant-time comparison: a byte-by-byte early exit leaks the secret prefix.
+  if (!secret || !provided || !safeEqual(provided, secret)) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
   if (!process.env.MONGODB_URI) {

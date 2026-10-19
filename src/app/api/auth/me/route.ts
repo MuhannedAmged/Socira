@@ -7,7 +7,7 @@ import { OAuthAttempt } from "@/models/OAuthAttempt";
 import { Credential } from "@/models/Credential";
 import { Post, PostDestination } from "@/models/Post";
 import { MediaAsset, Notification, EmailVerification, PasswordReset, AuditLog } from "@/models/library";
-import { destroySession, sessionUserId } from "@/lib/auth/session";
+import { destroySession, activeSessionUserId } from "@/lib/auth/session";
 import { supabaseAdmin } from "@/lib/storage/supabase";
 
 export const runtime = "nodejs";
@@ -38,7 +38,7 @@ function serialize(user: {
 }
 
 export async function GET() {
-  const uid = await sessionUserId();
+  const uid = await activeSessionUserId();
   if (!uid) return NextResponse.json({ user: null }, { status: 401 });
   await dbConnect();
   const user = await User.findById(uid).lean();
@@ -60,7 +60,7 @@ const patchSchema = z.object({
 
 /** PATCH /api/auth/me — update the caller's own profile. Inherently owner-scoped. */
 export async function PATCH(req: Request) {
-  const uid = await sessionUserId();
+  const uid = await activeSessionUserId();
   if (!uid) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   const body = await req.json().catch(() => null);
   const parsed = patchSchema.safeParse(body);
@@ -95,7 +95,7 @@ export async function PATCH(req: Request) {
 
 /** DELETE /api/auth/me — delete the workspace: user + every owned document (+ stored media, best-effort). */
 export async function DELETE() {
-  const uid = await sessionUserId();
+  const uid = await activeSessionUserId();
   if (!uid) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   await dbConnect();
 
@@ -118,7 +118,6 @@ export async function DELETE() {
     // Storage unconfigured or unreachable — continue with database deletion.
   }
 
-  await AuditLog.create({ ownerId: uid, event: "workspace.deleted", meta: {} });
   await Promise.all([
     SocialAccount.deleteMany({ ownerId: uid }),
     OAuthAttempt.deleteMany({ ownerId: uid }),
@@ -132,6 +131,8 @@ export async function DELETE() {
     AuditLog.deleteMany({ ownerId: uid }),
   ]);
   await User.deleteOne({ _id: uid });
+  // Written after the purge so the deletion event itself survives as the only remaining record.
+  await AuditLog.create({ ownerId: uid, event: "workspace.deleted", meta: {} });
   await destroySession();
   return NextResponse.json({ ok: true });
 }

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createHash, randomBytes } from "node:crypto";
 import { dbConnect } from "@/lib/db/mongoose";
 import { OAuthAttempt } from "@/models/OAuthAttempt";
-import { sessionUserId } from "@/lib/auth/session";
+import { activeSessionUserId } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 
@@ -22,7 +22,7 @@ function missingFor(platform: string): string[] {
 
 /** GET /api/social/connect?platform=x — creates a one-time attempt. Real redirect requires credentials. */
 export async function GET(req: Request) {
-  const uid = await sessionUserId();
+  const uid = await activeSessionUserId();
   if (!uid) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   const url = new URL(req.url);
   const platform = url.searchParams.get("platform") ?? "";
@@ -50,9 +50,12 @@ export async function GET(req: Request) {
   // Provider authorization URL construction is intentionally deferred to the
   // documented Social SDK provider factory for the installed version.
   // We return the attempt so the UI can continue once providers are wired.
+  // The provider authorization URL must include `state`; the callback verifies it against
+  // stateHash before consuming the attempt (OAuth CSRF protection).
   return NextResponse.json({
     ok: true,
     attemptId,
+    state,
     message: "OAuth attempt created. Provider redirect is wired per docs/social-sdk platform guide.",
   });
 }

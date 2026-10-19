@@ -4,6 +4,7 @@ import { dbConnect } from "@/lib/db/mongoose";
 import { User } from "@/models/User";
 import { EmailVerification } from "@/models/library";
 import { rateLimit } from "@/lib/rate-limit/memory";
+import { rateKey } from "@/lib/http/request";
 import { verifySchema } from "@/lib/validation/schemas";
 
 export const runtime = "nodejs";
@@ -14,7 +15,10 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Enter a valid email and 6-digit code." }, { status: 400 });
   }
-  if (!rateLimit(`verify:${parsed.data.email}`, 8, 10 * 60_000).ok) {
+  if (
+    !rateLimit(rateKey("verify:ip", req), 20, 10 * 60_000).ok ||
+    !rateLimit(rateKey("verify:account", req, parsed.data.email), 8, 10 * 60_000).ok
+  ) {
     return NextResponse.json({ error: "Too many attempts. Request a new code." }, { status: 429 });
   }
   await dbConnect();

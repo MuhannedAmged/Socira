@@ -4,13 +4,13 @@ import { z } from "zod";
 import { dbConnect } from "@/lib/db/mongoose";
 import { SocialAccount } from "@/models/SocialAccount";
 import { Credential } from "@/models/Credential";
-import { sessionUserId } from "@/lib/auth/session";
+import { activeSessionUserId } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 
 /** GET /api/accounts — the caller's connected accounts (safe fields only, never tokens). */
 export async function GET() {
-  const uid = await sessionUserId();
+  const uid = await activeSessionUserId();
   if (!uid) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   await dbConnect();
   const accounts = await SocialAccount.find({ ownerId: uid }).sort({ createdAt: -1 }).lean();
@@ -31,7 +31,7 @@ const removeSchema = z.object({ id: z.string().min(1) });
 
 /** DELETE /api/accounts — remove the local connection (ownership-checked). Remote revocation only where supported. */
 export async function DELETE(req: Request) {
-  const uid = await sessionUserId();
+  const uid = await activeSessionUserId();
   if (!uid) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   const body = await req.json().catch(() => null);
   const parsed = removeSchema.safeParse(body);

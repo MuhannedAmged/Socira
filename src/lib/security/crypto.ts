@@ -1,15 +1,24 @@
 import { createCipheriv, createDecipheriv, randomBytes, timingSafeEqual } from "node:crypto";
 
 const ALGO = "aes-256-gcm";
+const KEY_BYTES = 32;
 
+/**
+ * Parse CREDENTIAL_ENCRYPTION_KEY strictly. A key that is not exactly 32 bytes is a
+ * configuration error — silently zero-padding a short key would encrypt every token with a
+ * predictable, low-entropy key.
+ */
 function key(): Buffer {
-  const raw = process.env.CREDENTIAL_ENCRYPTION_KEY ?? "";
-  // Accept base64 or hex or utf8; derive 32 bytes deterministically.
-  const buf = Buffer.from(raw, raw.length === 64 && /^[0-9a-fA-F]+$/.test(raw) ? "hex" : "base64");
-  if (buf.length === 32) return buf;
-  const fallback = Buffer.alloc(32);
-  Buffer.from(raw, "utf8").copy(fallback);
-  return fallback;
+  const raw = (process.env.CREDENTIAL_ENCRYPTION_KEY ?? "").trim();
+  if (!raw) throw new Error("CREDENTIAL_ENCRYPTION_KEY is not configured.");
+  const hex = raw.length === KEY_BYTES * 2 && /^[0-9a-fA-F]+$/.test(raw);
+  const buf = Buffer.from(raw, hex ? "hex" : "base64");
+  if (buf.length !== KEY_BYTES) {
+    throw new Error(
+      `CREDENTIAL_ENCRYPTION_KEY must decode to exactly ${KEY_BYTES} bytes (44-char base64 or 64-char hex). Generate one with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`,
+    );
+  }
+  return buf;
 }
 
 export function keyVersion(): number {
@@ -17,7 +26,6 @@ export function keyVersion(): number {
 }
 
 export function encryptToken(plaintext: string): { ciphertext: string; iv: string; tag: string; version: number } {
-  if (!process.env.CREDENTIAL_ENCRYPTION_KEY) throw new Error("CREDENTIAL_ENCRYPTION_KEY is not configured.");
   const iv = randomBytes(12);
   const cipher = createCipheriv(ALGO, key(), iv);
   const enc = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
