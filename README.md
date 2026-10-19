@@ -13,7 +13,7 @@ Open-source social media management for **Instagram, Facebook, YouTube, LinkedIn
 | Account settings (profile, timezone, appearance, notification prefs, delete workspace) | Working — persisted per user |
 | Post composer and destination selection | Working — drafts and planned posts stored with per-destination records |
 | Connected accounts (list, disconnect, credential wipe) | Working |
-| Media uploads (signed Supabase uploads, per-user paths) | Working with storage configured |
+| Media uploads (signed Supabase uploads, per-user paths) | Working with storage configured — images and videos are removed from storage 3 days after upload (`/api/cron/media-cleanup`) |
 | Notifications (in-app list, mark read) | Working |
 | OAuth connect / callback | Working when credentials are configured — real provider authorization URL, PKCE + state verification, server-side code exchange, account discovery, encrypted credential storage. Facebook reports unsupported because the installed SDK ships no OAuth provider for it |
 | Publishing / scheduling execution | Not automated without a hosting cron. Queued destinations are reported as queued, never as published (`docs/SCHEDULING.md`) |
@@ -57,7 +57,7 @@ The app starts without any credentials — connections and publishing then repor
 | `LINKEDIN_API_VERSION` | LinkedIn | Explicit Marketing API version, `YYYYMM` (for example `202601`) |
 | `TIKTOK_CLIENT_KEY` / `_SECRET` | TikTok | |
 | `X_CLIENT_ID` / `_SECRET` | X | |
-| `CRON_SECRET` | Scheduler endpoint | Bearer token for `/api/cron/publish` |
+| `CRON_SECRET` | Scheduler and cleanup endpoints | Bearer token for `/api/cron/publish` and `/api/cron/media-cleanup` |
 
 Register a callback URL in each platform console pointing at `https://your-app/api/social/callback`. Facebook is not connectable: `@opencoredev/social-sdk@0.5.0` has no Facebook OAuth provider, and the UI states that instead of offering a dead redirect.
 

@@ -1,20 +1,25 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { motion, useReducedMotion } from "motion/react";
 import {
   IconCloudUpload,
   IconFile,
   IconLoader2,
+  IconMaximize,
   IconPhoto,
   IconTrash,
   IconVideo,
+  IconX,
 } from "@tabler/icons-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { EASE_OUT, SPRING_PANEL } from "@/lib/ease";
 import { cn } from "@/lib/utils";
 
 interface MediaItem {
@@ -37,6 +42,10 @@ function humanSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function fileName(path: string) {
+  return path.split("/").pop() || path;
 }
 
 function imageDimensions(file: File): Promise<{ width: number; height: number } | null> {
@@ -80,6 +89,22 @@ export default function MediaPage() {
   const [uploading, setUploading] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [preview, setPreview] = useState<MediaItem | null>(null);
+  const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (!preview) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPreview(null);
+    };
+    window.addEventListener("keydown", onKey);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = overflow;
+    };
+  }, [preview]);
 
   const load = useCallback(() => {
     fetch("/api/media")
@@ -189,7 +214,7 @@ export default function MediaPage() {
     <DashboardShell>
       <PageHeader
         title="Media library"
-        subtitle="Private Supabase bucket · user-scoped paths · signed URLs · ownership checks."
+        subtitle="Private Supabase bucket · user-scoped paths · signed URLs · automatically deleted after 3 days."
         action={
           <Button disabled={Boolean(uploading)} onClick={() => inputRef.current?.click()}>
             {uploading ? <IconLoader2 className="animate-spin" /> : <IconCloudUpload />}
@@ -244,7 +269,7 @@ export default function MediaPage() {
           <EmptyState
             icon={<IconPhoto />}
             title="No media yet"
-            description="Upload images and videos, or drop a file here. Assets are stored in your own private folder and served with short-lived signed URLs."
+            description="Upload images and videos, or drop a file here. Assets are stored in your own private folder, served with short-lived signed URLs, and removed after 3 days."
             action={
               <Button variant="outline" onClick={() => inputRef.current?.click()}>
                 <IconCloudUpload /> Choose a file
@@ -255,12 +280,23 @@ export default function MediaPage() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((item) => {
               const isImage = item.mime.startsWith("image/");
+              const name = fileName(item.path);
               return (
                 <Card key={item.id} className="overflow-hidden">
                   <div className="relative flex aspect-video items-center justify-center bg-muted">
                     {item.url && isImage ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={item.url} alt={item.path} className="size-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setPreview(item)}
+                        className="group relative flex size-full cursor-zoom-in items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+                        aria-label={`Open ${name} full screen`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={item.url} alt={name} className="size-full object-cover" />
+                        <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-[background-color,opacity] duration-200 group-hover:bg-black/25 group-hover:opacity-100 group-focus-visible:bg-black/25 group-focus-visible:opacity-100">
+                          <IconMaximize className="size-5 text-white" aria-hidden />
+                        </span>
+                      </button>
                     ) : item.url && !isImage ? (
                       <video src={item.url} className="size-full object-cover" controls preload="metadata" />
                     ) : (
@@ -274,9 +310,7 @@ export default function MediaPage() {
                     <span className="flex min-w-0 items-center gap-2">
                       <IconFile className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                       <span className="min-w-0">
-                        <span className="block truncate text-[13px] font-medium">
-                          {item.path.split("/").pop()}
-                        </span>
+                        <span className="block truncate text-[13px] font-medium">{name}</span>
                         <span className="tnum block text-[11px] text-muted-foreground">
                           {humanSize(item.size)}
                           {item.width && item.height ? ` · ${item.width}×${item.height}` : ""}
@@ -301,6 +335,56 @@ export default function MediaPage() {
           </div>
         )}
       </div>
+
+      {preview?.url
+        ? createPortal(
+            <motion.div
+              className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 bg-black/90 p-4 backdrop-blur-sm sm:p-8"
+              initial={reduceMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.18, ease: EASE_OUT }}
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Preview of ${fileName(preview.path)}`}
+            >
+              <button
+                type="button"
+                aria-label="Close preview"
+                onClick={() => setPreview(null)}
+                className="absolute inset-0 size-full cursor-zoom-out"
+              />
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setPreview(null)}
+                className="absolute right-4 top-4 z-20 flex size-9 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+              >
+                <IconX className="size-5" aria-hidden />
+                <span className="sr-only">Close preview</span>
+              </button>
+              <motion.figure
+                className="relative z-10 flex max-h-full max-w-full flex-col items-center gap-3"
+                initial={reduceMotion ? false : { opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={SPRING_PANEL}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={preview.url}
+                  alt={fileName(preview.path)}
+                  className="max-h-[82vh] max-w-full rounded-xl object-contain shadow-2xl"
+                />
+                <figcaption className="max-w-full truncate px-12 text-center text-xs text-white/70">
+                  {fileName(preview.path)}
+                  {preview.width && preview.height ? ` · ${preview.width}×${preview.height}` : ""}
+                  {" · "}
+                  {humanSize(preview.size)}
+                </figcaption>
+              </motion.figure>
+            </motion.div>,
+            document.body,
+          )
+        : null}
     </DashboardShell>
   );
 }

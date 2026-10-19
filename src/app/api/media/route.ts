@@ -7,6 +7,7 @@ import { activeSessionUserId } from "@/lib/auth/session";
 import { supabaseAdmin, storageBucket } from "@/lib/storage/supabase";
 import { rateLimit } from "@/lib/rate-limit/memory";
 import { rateKey, crossOriginBlock } from "@/lib/http/request";
+import { liveMediaFilter, mediaExpiresAt } from "@/lib/media/retention";
 
 export const runtime = "nodejs";
 
@@ -35,7 +36,10 @@ export async function GET() {
   const uid = await activeSessionUserId();
   if (!uid) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   await dbConnect();
-  const assets = await MediaAsset.find({ ownerId: uid }).sort({ createdAt: -1 }).limit(60).lean();
+  const assets = await MediaAsset.find({ ownerId: uid, ...liveMediaFilter() })
+    .sort({ createdAt: -1 })
+    .limit(60)
+    .lean();
   const items = await Promise.all(
     assets.map(async (a) => ({
       id: String(a._id),
@@ -80,6 +84,7 @@ export async function POST(req: Request) {
     height: parsed.data.height,
     durationSec: parsed.data.durationSec,
     status: "ready",
+    expiresAt: mediaExpiresAt(),
   });
   return NextResponse.json({ ok: true, id: String(asset._id), url: await signRead(asset.storagePath) });
 }

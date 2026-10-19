@@ -1,4 +1,5 @@
 import mongoose, { Schema } from "mongoose";
+import { mediaExpiresAt } from "@/lib/media/retention";
 
 const MediaAssetSchema = new Schema(
   {
@@ -11,6 +12,7 @@ const MediaAssetSchema = new Schema(
     height: { type: Number },
     durationSec: { type: Number },
     status: { type: String, enum: ["uploading", "ready", "failed"], default: "ready", index: true },
+    expiresAt: { type: Date, required: true, index: true, default: () => mediaExpiresAt() },
   },
   { timestamps: true },
 );
