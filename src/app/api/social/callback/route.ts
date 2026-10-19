@@ -1,46 +1,69 @@
 import { NextResponse } from "next/server";
-import { createHash } from "node:crypto";
 import { dbConnect } from "@/lib/db/mongoose";
 import { OAuthAttempt } from "@/models/OAuthAttempt";
 import { activeSessionUserId } from "@/lib/auth/session";
-import { safeEqual } from "@/lib/security/crypto";
+import {
+  buildProvider,
+  credentialSink,
+  errorCode,
+  newConnectionManager,
+  oauthRedirectUri,
+  platformSupport,
+} from "@/lib/social/oauth";
 
 export const runtime = "nodejs";
 
+/** Where the platform sends the browser back. `state` resolves the owning attempt. */
+function backToApp(req: Request, params: Record<string, string>): NextResponse {
+  const url = new URL("/accounts", req.url);
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+  return NextResponse.redirect(url, 303);
+}
+
 /**
- * GET /api/social/callback?attemptId=…&state=… — validates a one-time attempt.
+ * GET /api/social/callback?code=…&state=…
  *
- * The state value is compared against the hash stored when the attempt was created. Without that
- * check, a callback URL captured from another session could be replayed into this one (OAuth
- * login CSRF). Code exchange happens server-side only.
+ * The SDK verifies state (constant-time), expiry, ownership, PKCE, and the redirect
+ * allowlist, then exchanges the code server-side. Discovery persists encrypted
+ * credentials; `select` consumes the attempt and issues grants. Every failure is a
+ * redirect with a code — never a silent success.
  */
 export async function GET(req: Request) {
   const uid = await activeSessionUserId();
-  if (!uid) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
-  const url = new URL(req.url);
-  const attemptId = url.searchParams.get("attemptId") ?? "";
-  const state = url.searchParams.get("state") ?? "";
-  if (!attemptId || !state) {
-    return NextResponse.json({ error: "Missing attemptId or state." }, { status: 400 });
-  }
-  const stateHash = createHash("sha256").update(state).digest("hex");
+  if (!uid) return backToApp(req, { error: "session_required" });
+
+  const state = new URL(req.url).searchParams.get("state") ?? "";
+  if (!state) return backToApp(req, { error: "invalid_state" });
+
   await dbConnect();
-  const attempt = await OAuthAttempt.findOne({ attemptId, ownerId: uid });
-  if (!attempt || attempt.status !== "pending") {
-    return NextResponse.json({ error: "Unknown or already-consumed OAuth attempt (replay protected)." }, { status: 400 });
+  const attempt = await OAuthAttempt.findOne({ state, ownerId: uid, consumedAt: null });
+  if (!attempt) return backToApp(req, { error: "unknown_attempt" });
+
+  const platform = attempt.platforms[0] ?? "";
+  const support = platformSupport(platform);
+  if (!support.ok) return backToApp(req, { error: "unconfigured" });
+
+  const redirectUri = oauthRedirectUri();
+  if (!redirectUri) return backToApp(req, { error: "app_url_missing" });
+
+  const manager = newConnectionManager();
+  const provider = buildProvider(support.config, credentialSink);
+  const scope = { attemptId: attempt.attemptId, tenantId: uid, principalId: uid };
+
+  try {
+    const accounts = await manager.discover({
+      ...scope,
+      callbackUrl: req.url,
+      returnedState: state,
+      allowedRedirectUris: [redirectUri],
+      provider,
+    });
+    const grants = await manager.select({
+      ...scope,
+      selectedAccountIds: accounts.map((account) => account.ref.accountId),
+    });
+    return backToApp(req, { connected: String(grants.length) });
+  } catch (error) {
+    return backToApp(req, { error: errorCode(error) });
   }
-  if (!safeEqual(String(attempt.stateHash), stateHash)) {
-    return NextResponse.json({ error: "Invalid OAuth state." }, { status: 400 });
-  }
-  if (attempt.expiresAt < new Date()) {
-    await OAuthAttempt.updateOne({ _id: attempt._id }, { $set: { status: "expired" } });
-    return NextResponse.json({ error: "OAuth attempt expired. Start again." }, { status: 400 });
-  }
-  // Mark consumed before any external exchange to prevent code replay.
-  await OAuthAttempt.updateOne({ _id: attempt._id }, { $set: { status: "consumed", consumedAt: new Date() } });
-  return NextResponse.json({
-    ok: true,
-    platform: attempt.platform,
-    message: "Callback validated. Account discovery runs server-side via the Social SDK provider flow (see docs/social-sdk).",
-  });
 }

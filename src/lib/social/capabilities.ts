@@ -30,8 +30,8 @@ export interface PlatformCapabilities {
   notes: string;
 }
 
-const SDK_VERSION = "unverified-installed";
-const LAST_CHECKED = "2026-10-15";
+const SDK_VERSION = "0.5.0";
+const LAST_CHECKED = "2026-10-19";
 
 export const CAPABILITIES: PlatformCapabilities[] = [
   {
@@ -43,12 +43,12 @@ export const CAPABILITIES: PlatformCapabilities[] = [
     notes: "Business/Creator via Meta app review. Text-only posts are not native to Instagram.",
   },
   {
-    platform: "facebook", oauth: "requires_config", discovery: "requires_config",
-    text: "requires_config", image: "requires_config", video: "requires_config",
-    carousel: "partial", nativeScheduling: "unsupported", drafts: "supported",
-    analytics: "partial", comments: "partial", mediaRetrieval: "partial",
-    postDeletion: "partial", webhooks: "requires_config", tokenRefresh: "supported",
-    notes: "Page tokens via Meta app. Verify direct adapter presence in installed SDK version.",
+    platform: "facebook", oauth: "unsupported", discovery: "unsupported",
+    text: "unsupported", image: "unsupported", video: "unsupported",
+    carousel: "unsupported", nativeScheduling: "unsupported", drafts: "unsupported",
+    analytics: "unsupported", comments: "unsupported", mediaRetrieval: "unsupported",
+    postDeletion: "unsupported", webhooks: "unsupported", tokenRefresh: "unsupported",
+    notes: "@opencoredev/social-sdk@0.5.0 has no Facebook OAuth provider or adapter, so Facebook cannot be connected. Enable it via a managed backend when one is configured.",
   },
   {
     platform: "youtube", oauth: "requires_config", discovery: "requires_config",

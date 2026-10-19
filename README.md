@@ -15,7 +15,7 @@ Open-source social media management for **Instagram, Facebook, YouTube, LinkedIn
 | Connected accounts (list, disconnect, credential wipe) | Working |
 | Media uploads (signed Supabase uploads, per-user paths) | Working with storage configured |
 | Notifications (in-app list, mark read) | Working |
-| OAuth connect / callback | Scaffolded — attempt + state creation, one-time replay protection, and error reporting when credentials are absent. The provider redirect and code exchange remain deferred to the Social SDK provider guides; no connection is ever faked |
+| OAuth connect / callback | Working when credentials are configured — real provider authorization URL, PKCE + state verification, server-side code exchange, account discovery, encrypted credential storage. Facebook reports unsupported because the installed SDK ships no OAuth provider for it |
 | Publishing / scheduling execution | Not automated without a hosting cron. Queued destinations are reported as queued, never as published (`docs/SCHEDULING.md`) |
 | Analytics | Not implemented — nothing is invented or estimated |
 
@@ -53,13 +53,13 @@ The app starts without any credentials — connections and publishing then repor
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET` | Media uploads | Service-role key is server-only |
 | `GOOGLE_OAUTH_CLIENT_ID` / `_SECRET` | YouTube | Per-platform OAuth app |
 | `INSTAGRAM_CLIENT_ID` / `_SECRET` | Instagram | |
-| `META_APP_ID` / `_SECRET` | Facebook | |
 | `LINKEDIN_CLIENT_ID` / `_SECRET` | LinkedIn | |
+| `LINKEDIN_API_VERSION` | LinkedIn | Explicit Marketing API version, `YYYYMM` (for example `202601`) |
 | `TIKTOK_CLIENT_KEY` / `_SECRET` | TikTok | |
 | `X_CLIENT_ID` / `_SECRET` | X | |
 | `CRON_SECRET` | Scheduler endpoint | Bearer token for `/api/cron/publish` |
 
-Register a callback URL in each platform console pointing at `https://your-app/api/social/callback`.
+Register a callback URL in each platform console pointing at `https://your-app/api/social/callback`. Facebook is not connectable: `@opencoredev/social-sdk@0.5.0` has no Facebook OAuth provider, and the UI states that instead of offering a dead redirect.
 
 ## Scripts
 
@@ -99,7 +99,7 @@ Every request handler scopes its database queries to the session owner (`{ owner
 - Passwords use bcrypt (cost 12). Verification codes and reset tokens are stored only as SHA-256 hashes, are single-use, and expire (15 and 30 minutes).
 - Platform credentials are encrypted with AES-256-GCM. The key must decode to exactly 32 bytes; a malformed key is a hard error, never silently zero-padded.
 - Login, registration, verification, resend, and password-reset endpoints are rate limited per network origin and per account.
-- OAuth attempts are one-time, expire in 10 minutes, and verify the `state` hash before consumption.
+- OAuth attempts are one-time, expire in 10 minutes, and are consumed atomically. The SDK verifies `state` in constant time, enforces the exact redirect allowlist, and keeps the PKCE verifier server-side.
 - The scheduler endpoint compares its secret in constant time and never marks work as published without a real worker.
 - Responses include a Content-Security-Policy and hardening headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, HSTS in production).
 - `CREDENTIAL_ENCRYPTION_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, and `CRON_SECRET` are server-only and belong in no `NEXT_PUBLIC_*` variable.

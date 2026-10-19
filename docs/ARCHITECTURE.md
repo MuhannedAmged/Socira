@@ -11,7 +11,7 @@ Browser → Route Handler (`src/app/api/**`, Node.js runtime) → `sessionUserId
 - `lib/auth` — bcryptjs passwords, jose sessions, rate limits on auth endpoints.
 - `models` — User, SocialAccount, OAuthAttempt, Credential (encrypted), Post + PostDestination, MediaAsset, Notification, EmailVerification, PasswordReset, AuditLog.
 - `lib/security/crypto` — AES-256-GCM with `CREDENTIAL_ENCRYPTION_KEY` + version for rotation.
-- `lib/social` — capability registry (`capabilities.ts`) + OAuth attempt lifecycle. Provider exchange uses the installed `@opencoredev/social-sdk` server factories; MemoryConnectionStore is never production persistence — MongoDB-backed attempts + Credential docs are.
+- `lib/social` — capability registry (`capabilities.ts`), provider config/factory (`oauth.ts`), and the MongoDB `ConnectionStore` (`connection-store.ts`). Real SDK flow: state + PKCE in Mongo, server-side code exchange, encrypted `Credential` upsert in the credential sink. `MemoryConnectionStore` is never production persistence.
 - `lib/storage` — Supabase private bucket, user-scoped paths, signed upload URLs. Service-role key server-only.
 - `lib/email` — Resend verification codes (hashed, 15-min, single-use, attempt-capped) + password resets (SHA-256 hashed, 30-min, single-use).
 

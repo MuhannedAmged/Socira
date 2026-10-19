@@ -1,66 +1,73 @@
 import { NextResponse } from "next/server";
-import { createHash, randomBytes } from "node:crypto";
 import { dbConnect } from "@/lib/db/mongoose";
-import { OAuthAttempt } from "@/models/OAuthAttempt";
 import { activeSessionUserId } from "@/lib/auth/session";
 import { rateLimit } from "@/lib/rate-limit/memory";
 import { rateKey } from "@/lib/http/request";
+import { OAUTH_BACKEND } from "@/lib/social/connection-store";
+import {
+  buildProvider,
+  credentialSink,
+  errorCode,
+  newConnectionManager,
+  oauthRedirectUri,
+  platformSupport,
+} from "@/lib/social/oauth";
 
 export const runtime = "nodejs";
 
-const ALLOWED = new Set(["instagram", "facebook", "youtube", "linkedin", "tiktok", "x"]);
-
-function missingFor(platform: string): string[] {
-  const map: Record<string, string[]> = {
-    instagram: ["INSTAGRAM_CLIENT_ID", "INSTAGRAM_CLIENT_SECRET"],
-    facebook: ["META_APP_ID", "META_APP_SECRET"],
-    youtube: ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET"],
-    linkedin: ["LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET"],
-    tiktok: ["TIKTOK_CLIENT_KEY", "TIKTOK_CLIENT_SECRET"],
-    x: ["X_CLIENT_ID", "X_CLIENT_SECRET"],
-  };
-  return (map[platform] ?? []).filter((k) => !process.env[k]);
-}
-
-/** GET /api/social/connect?platform=x — creates a one-time attempt. Real redirect requires credentials. */
+/**
+ * GET /api/social/connect?platform=x — begins a real OAuth connection.
+ *
+ * The Social SDK generates state + PKCE, persists the attempt (including the verifier,
+ * which never leaves the server) and returns the provider authorization URL. When
+ * credentials are missing the response names the exact variables instead of pretending
+ * a redirect exists.
+ */
 export async function GET(req: Request) {
   const uid = await activeSessionUserId();
   if (!uid) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   if (!rateLimit(rateKey("social:connect", req, uid), 20, 60_000).ok) {
     return NextResponse.json({ error: "Too many connection attempts. Try again shortly." }, { status: 429 });
   }
-  const url = new URL(req.url);
-  const platform = url.searchParams.get("platform") ?? "";
-  if (!ALLOWED.has(platform)) {
-    return NextResponse.json({ error: "Unsupported platform. Only instagram, facebook, youtube, linkedin, tiktok, x." }, { status: 400 });
-  }
-  const missing = missingFor(platform);
-  if (missing.length > 0) {
+
+  const platform = new URL(req.url).searchParams.get("platform") ?? "";
+  const support = platformSupport(platform);
+  if (!support.ok) {
     return NextResponse.json(
-      { error: `OAuth is not configured for ${platform}. Missing: ${missing.join(", ")}. See .env.example and docs.`, missing },
+      { error: support.error, missing: support.missing ?? [] },
+      { status: support.missing ? 503 : 400 },
+    );
+  }
+
+  const redirectUri = oauthRedirectUri();
+  if (!redirectUri) {
+    return NextResponse.json(
+      { error: "NEXT_PUBLIC_APP_URL is not set, so the OAuth callback URL cannot be registered. See .env.example." },
       { status: 503 },
     );
   }
+
   await dbConnect();
-  const attemptId = randomBytes(16).toString("hex");
-  const state = randomBytes(24).toString("hex");
-  const stateHash = createHash("sha256").update(state).digest("hex");
-  await OAuthAttempt.create({
-    ownerId: uid,
-    platform,
-    attemptId,
-    stateHash,
-    expiresAt: new Date(Date.now() + 10 * 60_000),
-  });
-  // Provider authorization URL construction is intentionally deferred to the
-  // documented Social SDK provider factory for the installed version.
-  // We return the attempt so the UI can continue once providers are wired.
-  // The provider authorization URL must include `state`; the callback verifies it against
-  // stateHash before consuming the attempt (OAuth CSRF protection).
-  return NextResponse.json({
-    ok: true,
-    attemptId,
-    state,
-    message: "OAuth attempt created. Provider redirect is wired per docs/social-sdk platform guide.",
-  });
+  try {
+    const start = await newConnectionManager().begin({
+      backend: OAUTH_BACKEND,
+      tenantId: uid,
+      principalId: uid,
+      platforms: [platform],
+      capabilities: ["oauth"],
+      redirectUri,
+      allowedRedirectUris: [redirectUri],
+      provider: buildProvider(support.config, credentialSink),
+    });
+    return NextResponse.json({
+      ok: true,
+      authorizationUrl: start.authorizationUrl,
+      expiresAt: start.attempt.expiresAt,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Could not start the OAuth authorization request.", code: errorCode(error) },
+      { status: 502 },
+    );
+  }
 }
