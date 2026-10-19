@@ -6,6 +6,7 @@ import { dbConnect } from "@/lib/db/mongoose";
 import { Post, PostDestination } from "@/models/Post";
 import { SocialAccount } from "@/models/SocialAccount";
 import { activeSessionUserId } from "@/lib/auth/session";
+import { crossOriginBlock } from "@/lib/http/request";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const cross = crossOriginBlock(req);
+  if (cross) return cross;
   const uid = await activeSessionUserId();
   if (!uid) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   const body = await req.json().catch(() => null);

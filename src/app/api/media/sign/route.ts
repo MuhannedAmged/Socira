@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { activeSessionUserId } from "@/lib/auth/session";
 import { supabaseAdmin, storageBucket, userScopedPath } from "@/lib/storage/supabase";
 import { rateLimit } from "@/lib/rate-limit/memory";
-import { rateKey } from "@/lib/http/request";
+import { rateKey, crossOriginBlock } from "@/lib/http/request";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -21,6 +21,8 @@ const VIDEO_MIME = new Set(["video/mp4", "video/quicktime", "video/webm"]);
 
 /** POST /api/media/sign — returns a signed upload URL scoped to the caller. */
 export async function POST(req: Request) {
+  const cross = crossOriginBlock(req);
+  if (cross) return cross;
   const uid = await activeSessionUserId();
   if (!uid) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   // Signed URLs are cheap to mint but each one can store hundreds of megabytes.

@@ -2,7 +2,7 @@
 
 Open-source social media management for **Instagram, Facebook, YouTube, LinkedIn, TikTok, and X** — one workspace to compose, schedule, publish, and measure, with connected accounts, encrypted credentials, per-destination publish receipts, and an honest capability registry instead of fake automation.
 
-- **MIT licensed.** No subscriptions, paywalls, or premium tiers.
+- **No subscriptions, paywalls, or premium tiers.**
 - **Honest by default.** If a platform or an integration cannot do something, the UI says so rather than pretending it worked.
 
 ## What works today
@@ -112,7 +112,7 @@ Found a vulnerability? Open a private report via the repository's security advis
 npm test
 ```
 
-Unit tests cover the capability registry, credential crypto (including rejection of malformed keys), and validation schemas. Run `npx tsc --noEmit` and `npm run lint` before opening a pull request.
+Unit tests cover the capability registry, credential crypto (including rejection of malformed keys), validation schemas, and the same-origin (CSRF) guard. Run `npx tsc --noEmit` and `npm run lint` before opening a pull request.
 
 ## Deployment
 
@@ -124,4 +124,4 @@ Keep changes honest: never report a platform action as successful when it did no
 
 ## License
 
-MIT — see `LICENSE`.
+No license file is currently included. Until one is added, the default "all rights reserved" applies and the code may not be reused or redistributed. Add a `LICENSE` file (for example MIT) to change that.

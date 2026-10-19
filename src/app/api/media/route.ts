@@ -6,7 +6,7 @@ import { MediaAsset } from "@/models/library";
 import { activeSessionUserId } from "@/lib/auth/session";
 import { supabaseAdmin, storageBucket } from "@/lib/storage/supabase";
 import { rateLimit } from "@/lib/rate-limit/memory";
-import { rateKey } from "@/lib/http/request";
+import { rateKey, crossOriginBlock } from "@/lib/http/request";
 
 export const runtime = "nodejs";
 
@@ -55,6 +55,8 @@ export async function GET() {
 
 /** POST /api/media — record an asset that was uploaded to the caller's own storage prefix. */
 export async function POST(req: Request) {
+  const cross = crossOriginBlock(req);
+  if (cross) return cross;
   const uid = await activeSessionUserId();
   if (!uid) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   if (!rateLimit(rateKey("media:record", req, uid), 60, 60_000).ok) {
@@ -86,6 +88,8 @@ const removeSchema = z.object({ id: z.string().min(1) });
 
 /** DELETE /api/media — remove the caller's asset from storage and the database. */
 export async function DELETE(req: Request) {
+  const cross = crossOriginBlock(req);
+  if (cross) return cross;
   const uid = await activeSessionUserId();
   if (!uid) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   const body = await req.json().catch(() => null);

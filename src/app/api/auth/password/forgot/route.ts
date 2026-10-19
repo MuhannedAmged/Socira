@@ -5,12 +5,14 @@ import { User } from "@/models/User";
 import { PasswordReset } from "@/models/library";
 import { sendPasswordResetEmail } from "@/lib/email/resend";
 import { rateLimit } from "@/lib/rate-limit/memory";
-import { rateKey } from "@/lib/http/request";
+import { rateKey, crossOriginBlock } from "@/lib/http/request";
 import { forgotSchema } from "@/lib/validation/schemas";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  const cross = crossOriginBlock(req);
+  if (cross) return cross;
   const body = await req.json().catch(() => null);
   const parsed = forgotSchema.safeParse(body);
   if (!parsed.success) {

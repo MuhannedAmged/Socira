@@ -4,7 +4,9 @@ import { z } from "zod";
 import { dbConnect } from "@/lib/db/mongoose";
 import { SocialAccount } from "@/models/SocialAccount";
 import { Credential } from "@/models/Credential";
+import { AuditLog } from "@/models/library";
 import { activeSessionUserId } from "@/lib/auth/session";
+import { crossOriginBlock } from "@/lib/http/request";
 
 export const runtime = "nodejs";
 
@@ -31,6 +33,8 @@ const removeSchema = z.object({ id: z.string().min(1) });
 
 /** DELETE /api/accounts — remove the local connection (ownership-checked). Remote revocation only where supported. */
 export async function DELETE(req: Request) {
+  const cross = crossOriginBlock(req);
+  if (cross) return cross;
   const uid = await activeSessionUserId();
   if (!uid) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   const body = await req.json().catch(() => null);
@@ -44,5 +48,10 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: "Account not found or not yours." }, { status: 404 });
   }
   await Credential.deleteMany({ socialAccountId: deleted._id, ownerId: uid });
+  await AuditLog.create({
+    ownerId: uid,
+    event: "account.disconnected",
+    meta: { platform: deleted.platform },
+  }).catch(() => {});
   return NextResponse.json({ ok: true });
 }

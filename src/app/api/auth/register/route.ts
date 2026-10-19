@@ -7,7 +7,7 @@ import { hashPassword } from "@/lib/auth/password";
 import { createSession } from "@/lib/auth/session";
 import { sendVerificationEmail } from "@/lib/email/resend";
 import { rateLimit } from "@/lib/rate-limit/memory";
-import { rateKey } from "@/lib/http/request";
+import { rateKey, crossOriginBlock } from "@/lib/http/request";
 import { registerSchema } from "@/lib/validation/schemas";
 
 export const runtime = "nodejs";
@@ -17,6 +17,8 @@ function issueCode(): string {
 }
 
 export async function POST(req: Request) {
+  const cross = crossOriginBlock(req);
+  if (cross) return cross;
   if (!rateLimit(rateKey("register", req), 10, 60_000).ok) {
     return NextResponse.json({ error: "Too many attempts. Try again shortly." }, { status: 429 });
   }

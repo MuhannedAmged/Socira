@@ -5,7 +5,7 @@ import { User } from "@/models/User";
 import { EmailVerification } from "@/models/library";
 import { sendVerificationEmail } from "@/lib/email/resend";
 import { rateLimit } from "@/lib/rate-limit/memory";
-import { rateKey } from "@/lib/http/request";
+import { rateKey, crossOriginBlock } from "@/lib/http/request";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -13,6 +13,8 @@ export const runtime = "nodejs";
 const schema = z.object({ email: z.string().email().transform((s) => s.trim().toLowerCase()) });
 
 export async function POST(req: Request) {
+  const cross = crossOriginBlock(req);
+  if (cross) return cross;
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid email." }, { status: 400 });

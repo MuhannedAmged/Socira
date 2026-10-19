@@ -3,6 +3,8 @@ import { createHash, randomBytes } from "node:crypto";
 import { dbConnect } from "@/lib/db/mongoose";
 import { OAuthAttempt } from "@/models/OAuthAttempt";
 import { activeSessionUserId } from "@/lib/auth/session";
+import { rateLimit } from "@/lib/rate-limit/memory";
+import { rateKey } from "@/lib/http/request";
 
 export const runtime = "nodejs";
 
@@ -24,6 +26,9 @@ function missingFor(platform: string): string[] {
 export async function GET(req: Request) {
   const uid = await activeSessionUserId();
   if (!uid) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+  if (!rateLimit(rateKey("social:connect", req, uid), 20, 60_000).ok) {
+    return NextResponse.json({ error: "Too many connection attempts. Try again shortly." }, { status: 429 });
+  }
   const url = new URL(req.url);
   const platform = url.searchParams.get("platform") ?? "";
   if (!ALLOWED.has(platform)) {

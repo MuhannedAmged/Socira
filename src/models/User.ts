@@ -4,7 +4,8 @@ const UserSchema = new Schema(
   {
     name: { type: String, required: true, maxlength: 80 },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
-    passwordHash: { type: String, required: true },
+    // Never returned unless a query opts in with .select("+passwordHash").
+    passwordHash: { type: String, required: true, select: false },
     emailVerified: { type: Boolean, default: false },
     theme: { type: String, enum: ["light", "dark", "system"], default: "system" },
     timezone: { type: String, default: "UTC" },

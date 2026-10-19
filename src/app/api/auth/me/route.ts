@@ -8,6 +8,7 @@ import { Credential } from "@/models/Credential";
 import { Post, PostDestination } from "@/models/Post";
 import { MediaAsset, Notification, EmailVerification, PasswordReset, AuditLog } from "@/models/library";
 import { destroySession, activeSessionUserId } from "@/lib/auth/session";
+import { crossOriginBlock } from "@/lib/http/request";
 import { supabaseAdmin } from "@/lib/storage/supabase";
 
 export const runtime = "nodejs";
@@ -60,6 +61,8 @@ const patchSchema = z.object({
 
 /** PATCH /api/auth/me — update the caller's own profile. Inherently owner-scoped. */
 export async function PATCH(req: Request) {
+  const cross = crossOriginBlock(req);
+  if (cross) return cross;
   const uid = await activeSessionUserId();
   if (!uid) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   const body = await req.json().catch(() => null);
@@ -94,7 +97,9 @@ export async function PATCH(req: Request) {
 }
 
 /** DELETE /api/auth/me — delete the workspace: user + every owned document (+ stored media, best-effort). */
-export async function DELETE() {
+export async function DELETE(req: Request) {
+  const cross = crossOriginBlock(req);
+  if (cross) return cross;
   const uid = await activeSessionUserId();
   if (!uid) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   await dbConnect();
