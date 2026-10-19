@@ -83,7 +83,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <div
           className={cn(
             "flex gap-2 border-t border-border p-3",
-            collapsed ? "flex-col items-center" : "flex-row items-center",
+            collapsed ? "flex-col items-center" : "flex-row items-center justify-center",
           )}
         >
           <span title={collapsed ? "Toggle theme" : undefined} className={cn(collapsed && "flex justify-center")}>

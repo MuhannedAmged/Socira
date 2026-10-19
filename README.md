@@ -120,7 +120,7 @@ A production checklist (env vars, HTTPS, callback URLs, headers, cron) is in `do
 
 ## Contributing
 
-See `CONTRIBUTING.md`. Keep changes honest: never report a platform action as successful when it did not actually happen, and mark unverified behaviour as unverified.
+Keep changes honest: never report a platform action as successful when it did not actually happen, and mark unverified behaviour as unverified. Run `npx tsc --noEmit`, `npm run lint`, and `npm test` before opening a pull request.
 
 ## License
 
