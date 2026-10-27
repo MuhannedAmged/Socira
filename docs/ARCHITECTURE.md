@@ -4,7 +4,7 @@ Modular monolith in one Next.js App Router app. Server Components by default; `"
 
 ## Request flow
 
-Browser → Route Handler (`src/app/api/**`, Node.js runtime) → `sessionUserId()` (jose HS256, HttpOnly/Lax) → `dbConnect()` (Mongoose, connection reuse) → ownership-scoped query (`ownerId`) → Zod validation → service (social/storage/email) → JSON response with safe errors.
+Browser → Route Handler (`src/app/api/**`, Node.js runtime) → `activeSessionUserId()` (jose HS256, HttpOnly/Lax, account status + session version) → `dbConnect()` (Mongoose, connection reuse) → ownership-scoped query (`ownerId`) → Zod validation → service (social/storage/email) → JSON response with safe errors. API responses are `Cache-Control: no-store`.
 
 ## Modules
 
