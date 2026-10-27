@@ -4,16 +4,16 @@ Modular monolith in one Next.js App Router app. Server Components by default; `"
 
 ## Request flow
 
-Browser → Route Handler (`src/app/api/**`, Node.js runtime) → `activeSessionUserId()` (jose HS256, HttpOnly/Lax, account status + session version) → `dbConnect()` (Mongoose, connection reuse) → ownership-scoped query (`ownerId`) → Zod validation → service (social/storage/email) → JSON response with safe errors. API responses are `Cache-Control: no-store`.
+Browser → Proxy (`src/proxy.ts`: cheap JWT check, per-request CSP nonce) → Route Handler (`src/app/api/**`, Node.js runtime) → `activeSessionUserId()` / `verifiedSession()` (jose HS256, HttpOnly/Lax, account status + session version + `jti` logout denylist) → `dbConnect()` (Mongoose, connection reuse) → ownership-scoped query (`ownerId`) → Zod validation → service (social/storage/email) → JSON response with safe errors. API responses are `Cache-Control: no-store`; HTML is dynamically rendered so the nonce can be attached.
 
 ## Modules
 
 - `lib/auth` — bcryptjs passwords, jose sessions, rate limits on auth endpoints.
-- `models` — User, SocialAccount, OAuthAttempt, Credential (encrypted), Post + PostDestination, MediaAsset, Notification, EmailVerification, PasswordReset, AuditLog.
+- `models` — User, RevokedSession (`jti` logout denylist with TTL), SocialAccount, OAuthAttempt, Credential (encrypted), Post + PostDestination, MediaAsset, Notification, EmailVerification, PasswordReset, AuditLog.
 - `lib/security/crypto` — AES-256-GCM with `CREDENTIAL_ENCRYPTION_KEY` + version for rotation.
 - `lib/social` — capability registry (`capabilities.ts`), provider config/factory (`oauth.ts`), and the MongoDB `ConnectionStore` (`connection-store.ts`). Real SDK flow: state + PKCE in Mongo, server-side code exchange, encrypted `Credential` upsert in the credential sink. `MemoryConnectionStore` is never production persistence.
-- `lib/storage` — Supabase private bucket, user-scoped paths, signed upload URLs. Service-role key server-only.
-- `lib/email` — Resend verification codes (hashed, 15-min, single-use, attempt-capped) + password resets (SHA-256 hashed, 30-min, single-use).
+- `lib/storage` — Supabase private bucket, user-scoped paths, signed upload URLs, post-upload `info()` size/MIME verification. Service-role key server-only.
+- `lib/email` — Resend verification codes (hashed, 15-min, single-use, attempt-capped) + password resets (SHA-256 hashed, 30-min, single-use). Product writes are gated on `emailVerified` only when Resend is configured (`lib/auth/verification.ts`).
 
 ## Tenant isolation
 

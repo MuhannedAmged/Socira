@@ -3,7 +3,7 @@
 - **Audit type:** static, adversarial source review of the whole project, plus dependency audit.
 - **Not performed:** live DAST, authenticated browser testing against real accounts, MongoDB/Supabase-backed integration tests, or third-party penetration testing. Fixes are verified by unit tests with mocks and by the production build — **not** by live end-to-end exploitation.
 - **Severity rubric:** Critical = direct unauthenticated takeover; High = authenticated takeover or cross-tenant impact; Medium = meaningful abuse with preconditions or defense-in-depth failure; Low = hardening/robustness.
-- **Result:** 18 findings. 17 fixed (12 with automated regression tests, 5 code-reviewed only), 1 open but mitigated by deployment configuration. See [REMEDIATION-LOG.md](./REMEDIATION-LOG.md) and [RESIDUAL-RISKS.md](./RESIDUAL-RISKS.md).
+- **Result:** 18 findings. 18 fixed (15 with automated regression tests, 3 code-reviewed only). Residual risks that remain are listed in [RESIDUAL-RISKS.md](./RESIDUAL-RISKS.md); see also [REMEDIATION-LOG.md](./REMEDIATION-LOG.md).
 
 ## Summary
 
@@ -26,7 +26,7 @@
 | F-15 | Low | OAuth | Redirect URI allowed non-HTTPS/malformed bases in production | Fixed, tested |
 | F-16 | Medium | Client | Post-login `next` check bypassable with backslashes | Fixed, tested |
 | F-17 | Low | Client | Crafted `?error=` key could crash the accounts page | Fixed, code-reviewed |
-| F-18 | Medium | Uploads | App cannot enforce actual bytes behind signed upload URLs | Open; documented, needs bucket config |
+| F-18 | Medium | Uploads | Signed uploads were accepted on declared metadata alone | Fixed, tested (post-upload metadata check) |
 
 ## Detailed findings
 
@@ -159,17 +159,18 @@
 
 ### F-18 — Signed uploads are not byte-validated by the app
 
-- **Evidence:** `src/app/api/media/sign/route.ts` checks the **declared** `mime`/`size`, then mints a Supabase signed upload URL. `src/app/api/media/route.ts` trusts the later declared metadata when recording the asset.
-- **Root cause:** the browser uploads directly to Supabase; the app never sees the bytes and cannot enforce a limit on them.
-- **Impact:** an authenticated user can exceed the UI limits or upload a different content type than declared, subject to the bucket's own settings. Files are served from the Supabase origin via signed URLs, not from the app origin.
-- **Status:** **Open by design of signed uploads.** Mitigation is deployment configuration: set the bucket's `file_size_limit` and `allowed_mime_types`. `docs/SECURITY.md` and `docs/DEPLOYMENT.md` now state this explicitly instead of claiming byte-level enforcement.
-- **Verification:** code path reviewed; bucket settings were not inspected because no live Supabase project was used.
+- **Evidence:** `src/app/api/media/sign/route.ts` checks the **declared** `mime`/`size`, then mints a Supabase signed upload URL. `src/app/api/media/route.ts` previously trusted the later declared metadata when recording the asset.
+- **Root cause:** the browser uploads directly to Supabase; the app never sees the bytes. A caller could upload one object and record different metadata (size/type) against it.
+- **Impact before the fix:** an authenticated user could exceed the UI limits or upload a different content type than declared, subject to the bucket's own settings. Files are served from the Supabase origin via signed URLs, not from the app origin.
+- **Fix:** after upload, `POST /api/media` calls `storage.from(bucket).info(path)` and compares the **observed** `size` and `contentType` with the declared values. A missing object, missing metadata, size mismatch, or MIME mismatch (apart from the JPEG/JPG alias) is rejected, and the object is deleted before any database row is created. The shared allowlist and per-type caps live in `src/lib/media/constraints.ts` and are applied at both sign and record time. A database write failure also deletes the just-verified object.
+- **Status:** **Fixed.** Bucket `file_size_limit` and `allowed_mime_types` remain recommended defense-in-depth, especially for uploads that are never recorded (see R-09).
+- **Verification:** `src/app/api/media/route.test.ts` covers missing objects, size mismatch, MIME mismatch, incomplete metadata, owner-prefix rejection, and the successful path; `src/lib/media/constraints.test.ts` covers the allowlist. **Not tested against a live Supabase project** — the `info()` response shape is covered by the installed SDK types and mocked tests.
 
 ## Checks that did not produce findings
 
 - **IDOR/tenant isolation:** every collection query is scoped by `ownerId`/`userId` resolved from the session; body-supplied IDs are re-checked. Destructive handlers use atomic owner-scoped `findOneAndDelete`/`deleteMany`.
 - **NoSQL injection:** Mongo filters receive Zod-parsed strings/booleans/enums, not raw objects; no `$where` or object spread from request bodies into filters.
-- **XSS:** no `dangerouslySetInnerHTML`, no `eval`, no raw HTML injection; React escapes rendered provider/user content. CSP provides a second layer (with the documented `unsafe-inline` caveat).
+- **XSS:** no `dangerouslySetInnerHTML`, no `eval`, no raw HTML injection; React escapes rendered provider/user content. CSP provides a second layer: scripts use a per-request nonce and `'strict-dynamic'`, with no `'unsafe-inline'` in `script-src`; `style-src` keeps `'unsafe-inline'` for inline style attributes.
 - **SSRF:** the server never fetches a user-supplied URL. Storage operations address `SUPABASE_URL` with server-derived paths.
 - **OAuth replay/state forgery:** attempts are owner-scoped, expire, are claimed atomically for discovery, and are consumed atomically; the SDK owns constant-time state/PKCE checks.
 - **Cron authorization:** both cron routes require `CRON_SECRET` with a constant-time comparison; `/api/cron/publish` does not publish anything and says so.

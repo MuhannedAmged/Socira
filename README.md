@@ -13,7 +13,7 @@ Open-source social media management for **Instagram, Facebook, YouTube, LinkedIn
 | Account settings (profile, timezone, appearance, notification prefs, delete workspace) | Working — persisted per user |
 | Post composer and destination selection | Working — drafts and planned posts stored with per-destination records |
 | Connected accounts (list, disconnect, credential wipe) | Working |
-| Media uploads (signed Supabase uploads, per-user paths) | Working with storage configured — images and videos are removed from storage 3 days after upload (`/api/cron/media-cleanup`) |
+| Media uploads (signed Supabase uploads, per-user paths, post-upload size/MIME verification) | Working with storage configured — images and videos are removed from storage 3 days after upload (`/api/cron/media-cleanup`) |
 | Notifications (in-app list, mark read) | Working |
 | OAuth connect / callback | Working when credentials are configured — real provider authorization URL, PKCE + state verification, server-side code exchange, account discovery, encrypted credential storage. Facebook reports unsupported because the installed SDK ships no OAuth provider for it |
 | Publishing / scheduling execution | Not automated without a hosting cron. Queued destinations are reported as queued, never as published (`docs/SCHEDULING.md`) |
@@ -95,17 +95,17 @@ docs/                   architecture, security, deployment, scheduling, capabili
 
 Every request handler scopes its database queries to the session owner (`{ ownerId: uid }`), validated before any write. Highlights; the full threat model is in `docs/SECURITY.md`:
 
-- Sessions are HttpOnly, SameSite=Lax JWTs; suspended accounts are rejected on every request rather than trusting a valid token for its 14-day lifetime. A password reset bumps a per-user session version, invalidating every session issued before it.
+- Sessions are HttpOnly, SameSite=Lax JWTs; suspended accounts are rejected on every request rather than trusting a valid token for its 14-day lifetime. Logout revokes the current token through a TTL `jti` denylist, and a password reset bumps a per-user session version, invalidating every session issued before it.
 - Passwords use bcrypt (cost 12) and inputs are capped at bcrypt's 72-byte limit. Verification codes and reset tokens are stored only as SHA-256 hashes, are single-use, and expire (15 and 30 minutes).
 - Reset links are built only from `NEXT_PUBLIC_APP_URL`; the request `Host` header is never trusted, and a missing/invalid origin fails closed instead of emailing an attacker-controlled link.
 - Platform credentials are encrypted with AES-256-GCM. The key must decode to exactly 32 bytes; a malformed key is a hard error, never silently zero-padded.
 - Login, registration, verification, resend, password-reset, media, post, and notification writes are rate limited per network origin and per account.
 - OAuth attempts are one-time, expire in 10 minutes, and are consumed atomically. The SDK verifies `state` in constant time, enforces the exact redirect allowlist, and keeps the PKCE verifier server-side.
 - The scheduler endpoint compares its secret in constant time and never marks work as published without a real worker.
-- Responses include a Content-Security-Policy (`connect-src` limited to the app and configured Supabase origin) and hardening headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, HSTS in production). API responses are `no-store`.
+- Responses include a per-request Content-Security-Policy (nonce-based `script-src`, `connect-src` limited to the app and configured Supabase origin) and hardening headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, HSTS in production). API responses are `no-store`.
 - `CREDENTIAL_ENCRYPTION_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, and `CRON_SECRET` are server-only and belong in no `NEXT_PUBLIC_*` variable.
 
-Known limits are listed in `docs/SECURITY.md` (per-instance rate limiter, CSP `unsafe-inline`, logout does not revoke an already-copied JWT, and email verification is recorded but not yet enforced).
+Known limits are listed in `docs/SECURITY.md` (per-instance rate limiter, style-only `unsafe-inline`, logout revocation needs the database, email verification is enforced only when Resend is configured, and abandoned signed uploads still rely on bucket limits/lifecycle rules).
 
 Found a vulnerability? Open a private report via the repository's security advisories rather than a public issue.
 
@@ -115,7 +115,7 @@ Found a vulnerability? Open a private report via the repository's security advis
 npm test
 ```
 
-Unit tests cover the capability registry, credential crypto (including rejection of malformed keys), validation schemas, the same-origin (CSRF) guard, password-reset token atomicity and session revocation, reset-link origin handling, and ownership scoping for post destinations, account disconnection, and media deletion. Run `npx tsc --noEmit` and `npm run lint` before opening a pull request.
+Unit tests cover the capability registry, credential crypto (including rejection of malformed keys), validation schemas, the same-origin (CSRF) guard, password-reset token atomicity, session-version and `jti` logout revocation, verification-attempt atomicity, nonce CSP generation, post-upload size/MIME verification, reset-link origin handling, and ownership scoping for post destinations, account disconnection, and media deletion. Run `npx tsc --noEmit` and `npm run lint` before opening a pull request.
 
 ## Deployment
 
