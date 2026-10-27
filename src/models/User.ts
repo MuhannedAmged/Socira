@@ -13,6 +13,12 @@ const UserSchema = new Schema(
       emailOnPublish: { type: Boolean, default: true },
       emailOnFailure: { type: Boolean, default: true },
     },
+    /**
+     * Incremented when all existing sessions must stop working (currently: password reset).
+     * Tokens carry the version they were issued with; a mismatch is rejected server-side.
+     * Defaults to 0 so sessions issued before this field existed keep working.
+     */
+    sessionVersion: { type: Number, default: 0 },
     status: { type: String, enum: ["active", "suspended"], default: "active" },
   },
   { timestamps: true },

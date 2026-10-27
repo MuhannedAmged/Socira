@@ -149,6 +149,7 @@ export default function SettingsPage() {
 
   async function signOut() {
     await fetch("/api/auth/logout", { method: "POST" });
+    setCurrentUser(null);
     router.push("/login");
   }
 
@@ -159,6 +160,7 @@ export default function SettingsPage() {
       setNotice({ ok: false, text: "Could not delete the workspace." });
       return;
     }
+    setCurrentUser(null);
     router.push("/");
   }
 

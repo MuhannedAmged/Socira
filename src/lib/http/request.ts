@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { configuredAppOrigin } from "@/lib/http/origin";
 
 /**
  * Coarse request metadata for rate limiting.
@@ -27,13 +28,12 @@ export function rateKey(scope: string, req: Request, identity?: string): string 
 
 function selfOrigins(req: Request): Set<string> {
   const allowed = new Set<string>();
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-  if (appUrl) {
-    try {
-      allowed.add(new URL(appUrl).origin);
-    } catch {
-      // Malformed NEXT_PUBLIC_APP_URL — fall back to the request host below.
-    }
+  const appOrigin = configuredAppOrigin();
+  if (appOrigin) {
+    // Once the public origin is configured, it is the only production authority. Accepting the
+    // request Host as well would let a forged Host header widen the allowlist.
+    allowed.add(appOrigin);
+    if (process.env.NODE_ENV === "production") return allowed;
   }
   const host = req.headers.get("host");
   if (host) {

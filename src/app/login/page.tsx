@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input, Label, FieldError } from "@/components/ui/input";
 import { loginFormSchema, normalizeEmail } from "@/lib/validation/schemas";
+import { safeInternalPath } from "@/lib/http/safe-redirect";
 import type { z } from "zod";
 
 type Values = z.infer<typeof loginFormSchema>;
@@ -35,9 +36,7 @@ export default function LoginPage() {
       return;
     }
     const params = new URLSearchParams(window.location.search);
-    const next = params.get("next");
-    const target = next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
-    router.push(target);
+    router.push(safeInternalPath(params.get("next"), window.location.origin));
   }
 
   return (

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { dbConnect } from "@/lib/db/mongoose";
 import { MediaAsset } from "@/models/library";
 import { activeSessionUserId } from "@/lib/auth/session";
-import { supabaseAdmin, storageBucket } from "@/lib/storage/supabase";
+import { supabaseAdmin, storageBucket, isManagedBucket } from "@/lib/storage/supabase";
 import { rateLimit } from "@/lib/rate-limit/memory";
 import { rateKey, crossOriginBlock } from "@/lib/http/request";
 import { liveMediaFilter, mediaExpiresAt } from "@/lib/media/retention";
@@ -107,7 +107,9 @@ export async function DELETE(req: Request) {
   const asset = await MediaAsset.findOneAndDelete({ _id: parsed.data.id, ownerId: uid });
   if (!asset) return NextResponse.json({ error: "Asset not found or not yours." }, { status: 404 });
   try {
-    await supabaseAdmin().storage.from(asset.bucket).remove([asset.storagePath]);
+    if (isManagedBucket(asset.bucket)) {
+      await supabaseAdmin().storage.from(asset.bucket).remove([asset.storagePath]);
+    }
   } catch {
     // Storage unreachable — the database record is already gone, so retry later if needed.
   }

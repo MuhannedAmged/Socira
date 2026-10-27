@@ -25,4 +25,11 @@ describe("credential crypto contract", () => {
     const filter = { _id: { $in: ["a", "b"] }, ownerId: "uid-1" };
     expect(filter.ownerId).toBe("uid-1");
   });
+
+  it("compares secrets in constant time without leaking their length", async () => {
+    const { safeEqual } = await import("@/lib/security/crypto");
+    expect(safeEqual("same-secret", "same-secret")).toBe(true);
+    expect(safeEqual("same-secret", "same-secreu")).toBe(false);
+    expect(safeEqual("short", "a-much-longer-secret")).toBe(false);
+  });
 });

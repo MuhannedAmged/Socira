@@ -70,7 +70,9 @@ export default function AccountsPage() {
       const count = Number(connected);
       message = `Connected ${count} account${count === 1 ? "" : "s"}. Tokens are encrypted at rest.`;
     } else {
-      message = OAUTH_ERRORS[error as string] ?? "OAuth did not complete. Start the connection again.";
+      message = Object.hasOwn(OAUTH_ERRORS, error as string)
+        ? OAUTH_ERRORS[error as string]
+        : "OAuth did not complete. Start the connection again.";
     }
     window.history.replaceState(null, "", "/accounts");
     // Deferred one tick: the redirect result arrives outside React, and setting state

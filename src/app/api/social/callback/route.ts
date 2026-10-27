@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db/mongoose";
 import { OAuthAttempt } from "@/models/OAuthAttempt";
 import { activeSessionUserId } from "@/lib/auth/session";
+import { configuredAppOrigin } from "@/lib/http/origin";
 import {
   buildProvider,
   credentialSink,
@@ -13,9 +14,19 @@ import {
 
 export const runtime = "nodejs";
 
-/** Where the platform sends the browser back. `state` resolves the owning attempt. */
-function backToApp(req: Request, params: Record<string, string>): NextResponse {
-  const url = new URL("/accounts", req.url);
+/**
+ * Where the platform sends the browser back. The base is the configured public origin, never
+ * `req.url`, so a forged Host header cannot turn an OAuth result into an open redirect.
+ */
+function backToApp(params: Record<string, string>): NextResponse {
+  const origin = configuredAppOrigin();
+  if (!origin) {
+    return NextResponse.json(
+      { error: "NEXT_PUBLIC_APP_URL is not configured, so the result cannot be redirected safely." },
+      { status: 503 },
+    );
+  }
+  const url = new URL("/accounts", origin);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
   return NextResponse.redirect(url, 303);
 }
@@ -30,21 +41,21 @@ function backToApp(req: Request, params: Record<string, string>): NextResponse {
  */
 export async function GET(req: Request) {
   const uid = await activeSessionUserId();
-  if (!uid) return backToApp(req, { error: "session_required" });
+  if (!uid) return backToApp({ error: "session_required" });
 
   const state = new URL(req.url).searchParams.get("state") ?? "";
-  if (!state) return backToApp(req, { error: "invalid_state" });
+  if (!state) return backToApp({ error: "invalid_state" });
 
   await dbConnect();
   const attempt = await OAuthAttempt.findOne({ state, ownerId: uid, consumedAt: null });
-  if (!attempt) return backToApp(req, { error: "unknown_attempt" });
+  if (!attempt) return backToApp({ error: "unknown_attempt" });
 
   const platform = attempt.platforms[0] ?? "";
   const support = platformSupport(platform);
-  if (!support.ok) return backToApp(req, { error: "unconfigured" });
+  if (!support.ok) return backToApp({ error: "unconfigured" });
 
   const redirectUri = oauthRedirectUri();
-  if (!redirectUri) return backToApp(req, { error: "app_url_missing" });
+  if (!redirectUri) return backToApp({ error: "app_url_missing" });
 
   const manager = newConnectionManager();
   const provider = buildProvider(support.config, credentialSink);
@@ -62,8 +73,8 @@ export async function GET(req: Request) {
       ...scope,
       selectedAccountIds: accounts.map((account) => account.ref.accountId),
     });
-    return backToApp(req, { connected: String(grants.length) });
+    return backToApp({ connected: String(grants.length) });
   } catch (error) {
-    return backToApp(req, { error: errorCode(error) });
+    return backToApp({ error: errorCode(error) });
   }
 }

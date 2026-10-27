@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
-import { createHash } from "node:crypto";
 import { dbConnect } from "@/lib/db/mongoose";
-import { User } from "@/models/User";
-import { PasswordReset } from "@/models/library";
-import { hashPassword } from "@/lib/auth/password";
+import { consumePasswordReset } from "@/lib/auth/password-reset";
 import { destroySession } from "@/lib/auth/session";
 import { rateLimit } from "@/lib/rate-limit/memory";
 import { crossOriginBlock, rateKey } from "@/lib/http/request";
@@ -26,13 +23,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Too many attempts." }, { status: 429 });
   }
   await dbConnect();
-  const tokenHash = createHash("sha256").update(parsed.data.token).digest("hex");
-  const record = await PasswordReset.findOne({ tokenHash, consumedAt: null, expiresAt: { $gt: new Date() } });
-  if (!record) return NextResponse.json({ error: "This reset link is invalid or expired." }, { status: 400 });
-  const passwordHash = await hashPassword(parsed.data.password);
-  await User.updateOne({ _id: record.userId }, { $set: { passwordHash } });
-  await PasswordReset.updateOne({ _id: record._id }, { $set: { consumedAt: new Date() } });
-  await PasswordReset.updateMany({ userId: record.userId, consumedAt: null }, { $set: { consumedAt: new Date() } });
+  const result = await consumePasswordReset(parsed.data.token, parsed.data.password);
+  if (result !== "ok") {
+    return NextResponse.json({ error: "This reset link is invalid or expired." }, { status: 400 });
+  }
+  // Clear this browser's cookie too; every other session is rejected by the version bump.
   await destroySession();
   return NextResponse.json({ ok: true });
 }

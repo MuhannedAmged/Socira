@@ -35,7 +35,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "An account with this email already exists." }, { status: 409 });
   }
   const passwordHash = await hashPassword(password);
-  const user = await User.create({ name, email, passwordHash, emailVerified: false });
+  let user;
+  try {
+    user = await User.create({ name, email, passwordHash, emailVerified: false });
+  } catch (error) {
+    // The pre-check above is not atomic; the unique index is. Report the same conflict instead of
+    // surfacing a raw duplicate-key error.
+    if (typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === 11000) {
+      return NextResponse.json({ error: "An account with this email already exists." }, { status: 409 });
+    }
+    throw error;
+  }
 
   const code = issueCode();
   const codeHash = createHash("sha256").update(code).digest("hex");
@@ -46,6 +56,6 @@ export async function POST(req: Request) {
     expiresAt: new Date(Date.now() + 15 * 60_000),
   });
   await sendVerificationEmail(email, code);
-  await createSession(String(user._id));
+  await createSession(String(user._id), Number(user.sessionVersion ?? 0));
   return NextResponse.json({ ok: true });
 }

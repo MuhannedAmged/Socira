@@ -6,10 +6,21 @@ const emailField = (message = "Enter a valid email address") =>
     z.string().email(message),
   );
 
+/**
+ * bcrypt only considers the first 72 bytes of a password. Rejecting longer inputs at the boundary
+ * prevents two visually different passwords from authenticating the same account.
+ */
+const MAX_PASSWORD_BYTES = 72;
+const passwordBytes = (value: string) => new TextEncoder().encode(value).length;
+const bcryptSafePassword = (schema: z.ZodString) =>
+  schema.refine((value) => passwordBytes(value) <= MAX_PASSWORD_BYTES, {
+    message: `Password must be at most ${MAX_PASSWORD_BYTES} bytes (use fewer characters or symbols).`,
+  });
+
 export const registerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(80),
   email: emailField(),
-  password: z.string().min(10, "Password must be at least 10 characters").max(128),
+  password: bcryptSafePassword(z.string().min(10, "Password must be at least 10 characters").max(128)),
   confirm: z.string(),
   accept: z.literal(true, { message: "Please accept the privacy policy and terms" }),
 }).refine((v) => v.password === v.confirm, { message: "Passwords do not match", path: ["confirm"] });
@@ -29,8 +40,8 @@ export const forgotSchema = z.object({
 });
 
 export const resetSchema = z.object({
-  token: z.string().min(16),
-  password: z.string().min(10).max(128),
+  token: z.string().min(16).max(256),
+  password: bcryptSafePassword(z.string().min(10).max(128)),
   confirm: z.string(),
 }).refine((v) => v.password === v.confirm, { message: "Passwords do not match", path: ["confirm"] });
 
@@ -51,7 +62,7 @@ export const registerFormSchema = z
   .object({
     name: z.string().min(2, "Name must be at least 2 characters").max(80),
     email: z.string().email("Enter a valid email address"),
-    password: z.string().min(10, "Password must be at least 10 characters").max(128),
+    password: bcryptSafePassword(z.string().min(10, "Password must be at least 10 characters").max(128)),
     confirm: z.string(),
     accept: z.boolean().refine((v) => v === true, { message: "Please accept the privacy policy and terms" }),
   })

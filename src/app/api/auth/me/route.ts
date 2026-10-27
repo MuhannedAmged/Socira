@@ -9,7 +9,7 @@ import { Post, PostDestination } from "@/models/Post";
 import { MediaAsset, Notification, EmailVerification, PasswordReset, AuditLog } from "@/models/library";
 import { destroySession, activeSessionUserId } from "@/lib/auth/session";
 import { crossOriginBlock } from "@/lib/http/request";
-import { supabaseAdmin } from "@/lib/storage/supabase";
+import { supabaseAdmin, storageBucket } from "@/lib/storage/supabase";
 
 export const runtime = "nodejs";
 
@@ -106,7 +106,9 @@ export async function DELETE(req: Request) {
 
   // Best-effort storage cleanup before removing DB references.
   try {
-    const media = await MediaAsset.find({ ownerId: uid }).select("storagePath bucket").lean();
+    const media = await MediaAsset.find({ ownerId: uid, bucket: storageBucket() })
+      .select("storagePath bucket")
+      .lean();
     const byBucket = new Map<string, string[]>();
     for (const m of media) {
       const list = byBucket.get(m.bucket) ?? [];

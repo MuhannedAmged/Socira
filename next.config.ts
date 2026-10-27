@@ -2,6 +2,25 @@ import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV !== "production";
 
+/** Parse an optional origin without letting a malformed value break the build. */
+function originOf(value: string | undefined): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+// The browser only talks to this app and to Supabase Storage (signed uploads). Keeping
+// `connect-src` narrow limits where an injected script could send data.
+const supabaseOrigin = originOf(process.env.SUPABASE_URL);
+const connectSources = [
+  "'self'",
+  ...(supabaseOrigin ? [supabaseOrigin] : []),
+  ...(isDev ? ["ws:", "wss:"] : []),
+].join(" ");
+
 const contentSecurityPolicy = [
   "default-src 'self'",
   // Next injects inline bootstrap scripts; dev tooling additionally needs eval.
@@ -10,7 +29,7 @@ const contentSecurityPolicy = [
   "img-src 'self' data: blob: https:",
   "media-src 'self' blob: https:",
   "font-src 'self' data:",
-  "connect-src 'self' https:",
+  `connect-src ${connectSources}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -37,6 +56,15 @@ const nextConfig: NextConfig = {
       {
         source: "/:path*",
         headers: securityHeaders,
+      },
+      {
+        // Authenticated JSON must not be stored by browsers, shared caches, or CDNs.
+        source: "/api/:path*",
+        headers: [
+          { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, proxy-revalidate" },
+          { key: "Pragma", value: "no-cache" },
+          { key: "Expires", value: "0" },
+        ],
       },
     ];
   },

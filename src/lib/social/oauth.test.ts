@@ -98,4 +98,15 @@ describe("oauthRedirectUri", () => {
     vi.stubEnv("NEXT_PUBLIC_APP_URL", "");
     expect(oauthRedirectUri()).toBeUndefined();
   });
+
+  it("refuses a non-HTTPS callback origin in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "http://socira.example");
+    expect(oauthRedirectUri()).toBeUndefined();
+  });
+
+  it("refuses a malformed callback origin", () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "not a url");
+    expect(oauthRedirectUri()).toBeUndefined();
+  });
 });

@@ -8,6 +8,7 @@ import {
 import { SocialAccount } from "@/models/SocialAccount";
 import { Credential } from "@/models/Credential";
 import { encryptToken } from "@/lib/security/crypto";
+import { configuredAppOrigin } from "@/lib/http/origin";
 import { MongoConnectionStore } from "@/lib/social/connection-store";
 
 /**
@@ -105,15 +106,16 @@ export function platformSupport(platform: string): PlatformSupport {
   return { ok: true, config };
 }
 
-/** Resolve the registered callback URL. It must match what the platform console holds. */
+/**
+ * Resolve the registered callback URL. It must match what the platform console holds.
+ *
+ * Uses the same trusted-origin helper as reset links, so a production deployment cannot start an
+ * OAuth flow whose callback is a non-HTTPS or malformed origin: the route returns 503 instead.
+ */
 export function oauthRedirectUri(): string | undefined {
-  const base = (process.env.NEXT_PUBLIC_APP_URL ?? "").trim();
+  const base = configuredAppOrigin();
   if (!base) return undefined;
-  try {
-    return new URL("/api/social/callback", base).toString();
-  } catch {
-    return undefined;
-  }
+  return new URL("/api/social/callback", base).toString();
 }
 
 /**

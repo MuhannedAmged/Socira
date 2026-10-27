@@ -6,7 +6,8 @@ import { dbConnect } from "@/lib/db/mongoose";
 import { Post, PostDestination } from "@/models/Post";
 import { SocialAccount } from "@/models/SocialAccount";
 import { activeSessionUserId } from "@/lib/auth/session";
-import { crossOriginBlock } from "@/lib/http/request";
+import { rateLimit } from "@/lib/rate-limit/memory";
+import { crossOriginBlock, rateKey } from "@/lib/http/request";
 
 export const runtime = "nodejs";
 
@@ -29,6 +30,9 @@ export async function POST(req: Request) {
   if (cross) return cross;
   const uid = await activeSessionUserId();
   if (!uid) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+  if (!rateLimit(rateKey("posts:create", req, uid), 20, 60_000).ok) {
+    return NextResponse.json({ error: "Too many posts. Try again shortly." }, { status: 429 });
+  }
   const body = await req.json().catch(() => null);
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) {
@@ -58,14 +62,20 @@ export async function POST(req: Request) {
     idempotencyKey,
   });
   // Record per-destination outcomes honestly: queued for real publish worker, not fake success.
-  const destinations = await PostDestination.insertMany(
-    accounts.map((a) => ({
-      ownerId: uid,
-      postId: post._id,
-      socialAccountId: a._id,
-      platform: a.platform,
-      status: parsed.data.status === "draft" || parsed.data.status === "planned" ? "queued" : "publishing",
-    })),
-  );
-  return NextResponse.json({ ok: true, postId: String(post._id), destinations: destinations.length });
+  try {
+    const destinations = await PostDestination.insertMany(
+      accounts.map((a) => ({
+        ownerId: uid,
+        postId: post._id,
+        socialAccountId: a._id,
+        platform: a.platform,
+        status: parsed.data.status === "draft" || parsed.data.status === "planned" ? "queued" : "publishing",
+      })),
+    );
+    return NextResponse.json({ ok: true, postId: String(post._id), destinations: destinations.length });
+  } catch {
+    // Do not leave a post with no destinations behind when the second write fails.
+    await Post.deleteOne({ _id: post._id, ownerId: uid }).catch(() => {});
+    return NextResponse.json({ error: "Could not save the post destinations." }, { status: 500 });
+  }
 }

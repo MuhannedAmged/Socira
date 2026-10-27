@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes, timingSafeEqual } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
 const ALGO = "aes-256-gcm";
 const KEY_BYTES = 32;
@@ -40,8 +40,9 @@ export function decryptToken(ciphertext: string, iv: string, tag: string): strin
 }
 
 export function safeEqual(a: string, b: string): boolean {
-  const ab = Buffer.from(a, "utf8");
-  const bb = Buffer.from(b, "utf8");
-  if (ab.length !== bb.length) return false;
+  // Hashing first gives both operands the same fixed length, so comparison time does not reveal
+  // the length of the expected secret and `timingSafeEqual` never sees mismatched buffers.
+  const ab = createHash("sha256").update(a, "utf8").digest();
+  const bb = createHash("sha256").update(b, "utf8").digest();
   return timingSafeEqual(ab, bb);
 }

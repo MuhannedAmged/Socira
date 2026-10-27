@@ -8,7 +8,16 @@ export function supabaseAdmin() {
 }
 
 export function storageBucket(): string {
-  return process.env.SUPABASE_STORAGE_BUCKET ?? "socira-media";
+  return (process.env.SUPABASE_STORAGE_BUCKET ?? "").trim() || "socira-media";
+}
+
+/**
+ * Only the configured media bucket may be touched with the service-role key. A bucket value read
+ * from a database row is data, not authority; without this check a corrupted or tampered record
+ * could direct a delete at an unrelated bucket the key can reach.
+ */
+export function isManagedBucket(bucket: string): boolean {
+  return bucket === storageBucket();
 }
 
 export function userScopedPath(ownerId: string, filename: string): string {

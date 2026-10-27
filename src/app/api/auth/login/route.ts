@@ -42,7 +42,7 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
   }
-  await createSession(String(user._id));
+  await createSession(String(user._id), Number(user.sessionVersion ?? 0));
   await AuditLog.create({ ownerId: user._id, event: "auth.login", meta: {} }).catch(() => {});
   return NextResponse.json({ ok: true, verified: Boolean(user.emailVerified) });
 }
