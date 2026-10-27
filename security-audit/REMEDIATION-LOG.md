@@ -1,12 +1,14 @@
 # Remediation log
 
-Work was done in three traceable increments on `master`:
+Work was done in traceable increments on `master`:
 
 | Commit | Scope |
 |---|---|
-| `afc8c9d` | Runtime fixes + regression tests (37 files, +839/−102) |
+| `afc8c9d` | Runtime fixes + 13 regression-test files (37 files, +839/−102) |
 | `57a55f6` | Documentation aligned with actual behaviour (4 files) |
-| _(this commit)_ | Audit artifacts (`security-audit/`) |
+| `9f6240d` | Header regression test missed by the first staging path (`src/next-config.test.ts`) |
+| `29d6bdc` | Audit artifacts (`security-audit/`) |
+| _(this commit)_ | Coverage-log correction: records `9f6240d` and the final test count |
 
 All fixes are source changes; no production database, bucket, or live provider was modified. No secrets were read or written during remediation.
 

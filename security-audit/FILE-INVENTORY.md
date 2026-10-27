@@ -1,9 +1,9 @@
 # File inventory
 
 - **Repository:** `Socira` (Next.js 16 App Router, TypeScript strict, MongoDB/Mongoose, Supabase Storage, Resend, `@opencoredev/social-sdk`).
-- **Revision audited:** working tree on `master` at `64d3e3c` plus uncommitted audit changes.
+- **Revision audited:** `master`, starting at `64d3e3c`; fixes and artifacts are in `afc8c9d`, `57a55f6`, `9f6240d`, `29d6bdc`, and the log-correction commit.
 - **Inventory date:** 2026-10-27.
-- **Counted project files:** 117 (103 tracked + 14 previously untracked source/test files). Total ~15,556 lines.
+- **Counted project files:** 117 (103 tracked at audit start + 14 source/test files that were untracked then and are committed now). Total ~15,556 lines.
 - **Per-file status:** see [COVERAGE.md](./COVERAGE.md). Every counted file has an explicit status; none is silently skipped.
 
 ## Group summary
