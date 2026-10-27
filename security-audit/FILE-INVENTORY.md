@@ -1,7 +1,7 @@
 # File inventory
 
 - **Repository:** `Socira` (Next.js 16 App Router, TypeScript strict, MongoDB/Mongoose, Supabase Storage, Resend, `@opencoredev/social-sdk`).
-- **Revision audited:** `master`, starting at `64d3e3c`; fixes and artifacts are in `afc8c9d`, `57a55f6`, `9f6240d`, `29d6bdc`, `4e4a54a`, `f962179`, and `0abcd47`.
+- **Revision audited:** `master`, starting at `64d3e3c`; fixes and artifacts are in `afc8c9d`, `57a55f6`, `9f6240d`, `29d6bdc`, `4e4a54a`, `f962179`, and `ecd0b72`.
 - **Inventory date:** 2026-10-27.
 - **Counted project files:** 126 (117 at the first pass + 9 source/test files added by the follow-up fixes). Total ~15,490 lines.
 - **Per-file status:** see [COVERAGE.md](./COVERAGE.md). Every counted file has an explicit status; none is silently skipped.
@@ -62,4 +62,4 @@ These are present locally but are not part of the tracked project. They are list
 - No `.github/`, Docker, Terraform, Kubernetes, or deployment scripts exist in the repository.
 - `public/` is absent/empty; no static uploads are served from the app origin.
 - No secret-like literals were found in tracked source; `.env.example` contains empty placeholders only.
-- The audit fixes and tests are committed as `f962179`; documentation and audit artifacts are in `0abcd47`. See [REMEDIATION-LOG.md](./REMEDIATION-LOG.md).
+- The audit fixes and tests are committed as `f962179`; documentation and audit artifacts are in `ecd0b72`. See [REMEDIATION-LOG.md](./REMEDIATION-LOG.md).

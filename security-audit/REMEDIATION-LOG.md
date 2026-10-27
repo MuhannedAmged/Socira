@@ -10,7 +10,7 @@ Work was done in traceable increments on `master`:
 | `29d6bdc` | Audit artifacts (`security-audit/`) |
 | `4e4a54a` | Coverage-log correction: records `9f6240d` and the final test count |
 | `f962179` | Remaining five fixes: post-upload verification, atomic attempts, `jti` logout, verification gate, nonce CSP (24 files, +907/−116) |
-| `0abcd47` | Security docs and audit artifacts updated for the new controls (10 files) |
+| `ecd0b72` | Security docs and audit artifacts updated for the new controls (10 files) |
 
 All fixes are source changes; no production database, bucket, or live provider was modified. No secrets were read or written during remediation.
 
