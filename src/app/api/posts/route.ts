@@ -6,6 +6,7 @@ import { dbConnect } from "@/lib/db/mongoose";
 import { Post, PostDestination } from "@/models/Post";
 import { SocialAccount } from "@/models/SocialAccount";
 import { activeSessionUserId } from "@/lib/auth/session";
+import { EMAIL_UNVERIFIED_ERROR, verifiedSession } from "@/lib/auth/verification";
 import { rateLimit } from "@/lib/rate-limit/memory";
 import { crossOriginBlock, rateKey } from "@/lib/http/request";
 
@@ -28,8 +29,12 @@ export async function GET() {
 export async function POST(req: Request) {
   const cross = crossOriginBlock(req);
   if (cross) return cross;
-  const uid = await activeSessionUserId();
-  if (!uid) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+  const session = await verifiedSession();
+  if (!session) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+  if (!session.emailVerified) {
+    return NextResponse.json({ error: EMAIL_UNVERIFIED_ERROR, code: "email_unverified" }, { status: 403 });
+  }
+  const uid = session.uid;
   if (!rateLimit(rateKey("posts:create", req, uid), 20, 60_000).ok) {
     return NextResponse.json({ error: "Too many posts. Try again shortly." }, { status: 429 });
   }

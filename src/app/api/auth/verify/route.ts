@@ -27,21 +27,44 @@ export async function POST(req: Request) {
   const user = await User.findOne({ email: parsed.data.email });
   // Neutral response to reduce enumeration, but still actionable.
   if (!user) return NextResponse.json({ error: "Invalid or expired code." }, { status: 400 });
-  const record = await EmailVerification.findOne({
-    userId: user._id,
-    consumedAt: null,
-    expiresAt: { $gt: new Date() },
-  }).sort({ createdAt: -1 });
-  if (!record) return NextResponse.json({ error: "Invalid or expired code." }, { status: 400 });
-  if ((record.attempts as number) >= 6) {
-    return NextResponse.json({ error: "Too many attempts. Request a new code." }, { status: 429 });
+
+  const now = new Date();
+  // Claim an attempt atomically. The conditional update is what enforces the cap: concurrent
+  // requests can never read the same pre-increment count and each slip past it.
+  const record = await EmailVerification.findOneAndUpdate(
+    {
+      userId: user._id,
+      consumedAt: null,
+      expiresAt: { $gt: now },
+      attempts: { $lt: 6 },
+    },
+    { $inc: { attempts: 1 } },
+    { sort: { createdAt: -1 }, new: true },
+  );
+  if (!record) {
+    const exhausted = await EmailVerification.exists({
+      userId: user._id,
+      consumedAt: null,
+      expiresAt: { $gt: now },
+      attempts: { $gte: 6 },
+    });
+    if (exhausted) {
+      return NextResponse.json({ error: "Too many attempts. Request a new code." }, { status: 429 });
+    }
+    return NextResponse.json({ error: "Invalid or expired code." }, { status: 400 });
   }
+
   const candidate = createHash("sha256").update(parsed.data.code).digest();
   const stored = Buffer.from(record.codeHash as string, "hex");
   const match = candidate.length === stored.length && timingSafeEqual(candidate, stored);
-  await EmailVerification.updateOne({ _id: record._id }, { $inc: { attempts: 1 } });
   if (!match) return NextResponse.json({ error: "Invalid or expired code." }, { status: 400 });
-  await EmailVerification.updateOne({ _id: record._id }, { $set: { consumedAt: new Date() } });
+
+  // Consume exactly once, even if two correct requests arrive together.
+  const consumed = await EmailVerification.findOneAndUpdate(
+    { _id: record._id, consumedAt: null },
+    { $set: { consumedAt: new Date() } },
+  );
+  if (!consumed) return NextResponse.json({ error: "Invalid or expired code." }, { status: 400 });
   await User.updateOne({ _id: user._id }, { $set: { emailVerified: true } });
   return NextResponse.json({ ok: true });
 }

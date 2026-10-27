@@ -6,6 +6,7 @@ import { SocialAccount } from "@/models/SocialAccount";
 import { Credential } from "@/models/Credential";
 import { AuditLog } from "@/models/library";
 import { activeSessionUserId } from "@/lib/auth/session";
+import { EMAIL_UNVERIFIED_ERROR, verifiedSession } from "@/lib/auth/verification";
 import { crossOriginBlock } from "@/lib/http/request";
 
 export const runtime = "nodejs";
@@ -35,8 +36,12 @@ const removeSchema = z.object({ id: z.string().min(1) });
 export async function DELETE(req: Request) {
   const cross = crossOriginBlock(req);
   if (cross) return cross;
-  const uid = await activeSessionUserId();
-  if (!uid) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+  const session = await verifiedSession();
+  if (!session) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+  if (!session.emailVerified) {
+    return NextResponse.json({ error: EMAIL_UNVERIFIED_ERROR, code: "email_unverified" }, { status: 403 });
+  }
+  const uid = session.uid;
   const body = await req.json().catch(() => null);
   const parsed = removeSchema.safeParse(body);
   if (!parsed.success || !mongoose.isValidObjectId(parsed.data.id)) {

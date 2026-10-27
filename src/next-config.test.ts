@@ -11,12 +11,22 @@ describe("response security headers", () => {
     expect(cache?.value).toContain("no-cache");
   });
 
-  it("does not allow arbitrary HTTPS origins in connect-src", async () => {
+  it("does not emit a static CSP that would conflict with the per-request nonce policy", async () => {
     const rules = await nextConfig.headers?.();
     const global = rules?.find((rule) => rule.source === "/:path*");
-    const csp = global?.headers.find((header) => header.key === "Content-Security-Policy")?.value ?? "";
-    expect(csp).toContain("connect-src 'self'");
-    expect(csp).not.toContain("connect-src 'self' https:;");
-    expect(csp).toContain("frame-ancestors 'none'");
+    expect(global).toBeDefined();
+    const csp = global?.headers.find((header) => header.key.toLowerCase() === "content-security-policy");
+    expect(csp).toBeUndefined();
+  });
+
+  it("keeps the other baseline security headers", async () => {
+    const rules = await nextConfig.headers?.();
+    const global = rules?.find((rule) => rule.source === "/:path*");
+    const keys = new Set(global?.headers.map((header) => header.key.toLowerCase()));
+
+    expect(keys.has("x-content-type-options")).toBe(true);
+    expect(keys.has("x-frame-options")).toBe(true);
+    expect(keys.has("referrer-policy")).toBe(true);
+    expect(keys.has("permissions-policy")).toBe(true);
   });
 });

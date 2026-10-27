@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   activeSessionUserId: vi.fn(),
@@ -17,8 +17,14 @@ import { DELETE } from "./route";
 
 const ACCOUNT_ID = "507f1f77bcf86cd799439011";
 
+beforeEach(() => {
+  vi.stubEnv("RESEND_API_KEY", "");
+  vi.stubEnv("RESEND_FROM_EMAIL", "");
+});
+
 afterEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe("account disconnect ownership", () => {

@@ -4,6 +4,10 @@ import { Agentation } from "agentation";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 
+// Nonce-based CSP requires every page to render dynamically: a statically generated HTML shell
+// has no request headers, so Next.js cannot attach the per-request nonce to its scripts.
+export const dynamic = "force-dynamic";
+
 const hanken = Hanken_Grotesk({
   variable: "--font-hanken",
   subsets: ["latin"],

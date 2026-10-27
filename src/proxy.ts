@@ -1,8 +1,29 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
+import { buildContentSecurityPolicy } from "@/lib/http/csp";
 
 const COOKIE = "socira_session";
 const MIN_SECRET_LENGTH = 32;
+
+/** Pages that require a session. Everything else stays public (marketing, docs, auth screens). */
+const PROTECTED_PREFIXES = [
+  "/dashboard",
+  "/accounts",
+  "/compose",
+  "/calendar",
+  "/posts",
+  "/media",
+  "/analytics",
+  "/inbox",
+  "/notifications",
+  "/settings",
+];
+
+function isProtected(pathname: string): boolean {
+  return PROTECTED_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
 
 /** Cheap signature check only — the database-backed status check happens in each route handler. */
 async function hasValidSession(req: NextRequest): Promise<boolean> {
@@ -19,34 +40,32 @@ async function hasValidSession(req: NextRequest): Promise<boolean> {
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const authed = await hasValidSession(req);
-  const isAuthScreen = pathname === "/login" || pathname === "/register";
 
-  // Auth screens stay reachable even with a stale-but-valid token: a suspended account must be
-  // able to land on /login instead of being bounced between the dashboard and itself.
-  if (!authed && !isAuthScreen) {
+  // A fresh nonce per request. Next.js reads it from the CSP request header and applies it to the
+  // framework/page scripts during server rendering, so the pages must render dynamically.
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const contentSecurityPolicy = buildContentSecurityPolicy(nonce);
+
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("Content-Security-Policy", contentSecurityPolicy);
+
+  const authed = await hasValidSession(req);
+  if (!authed && isProtected(pathname)) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     url.search = `?next=${encodeURIComponent(pathname)}`;
-    return NextResponse.redirect(url);
+    const redirect = NextResponse.redirect(url);
+    redirect.headers.set("Content-Security-Policy", contentSecurityPolicy);
+    return redirect;
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  response.headers.set("Content-Security-Policy", contentSecurityPolicy);
+  return response;
 }
 
 export const config = {
-  matcher: [
-    "/dashboard/:path*",
-    "/accounts/:path*",
-    "/compose/:path*",
-    "/calendar/:path*",
-    "/posts/:path*",
-    "/media/:path*",
-    "/analytics/:path*",
-    "/inbox/:path*",
-    "/notifications/:path*",
-    "/settings/:path*",
-    "/login",
-    "/register",
-  ],
+  // Run for pages only: API routes carry JSON (no scripts) and static assets need no nonce.
+  matcher: ["/((?!api|_next|.*\\..*).*)"],
 };

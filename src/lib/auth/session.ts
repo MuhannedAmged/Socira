@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { dbConnect } from "@/lib/db/mongoose";
 import { User } from "@/models/User";
+import { RevokedSession } from "@/models/Session";
 
 const COOKIE = "socira_session";
 export const SESSION_COOKIE = COOKIE;
@@ -31,7 +33,8 @@ export function isCurrentSessionVersion(tokenValue: unknown, currentValue: unkno
 export async function createSession(userId: string, sessionVersion = 0) {
   const version =
     typeof sessionVersion === "number" && Number.isSafeInteger(sessionVersion) ? sessionVersion : 0;
-  const token = await new SignJWT({ sub: userId, sv: version })
+  // `jti` allows logout to revoke exactly this token without invalidating other devices.
+  const token = await new SignJWT({ sub: userId, sv: version, jti: randomUUID() })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${MAX_AGE}s`)
@@ -51,16 +54,49 @@ export async function destroySession() {
   jar.delete(COOKIE);
 }
 
-async function readSession(): Promise<{ uid: string; sv: unknown } | null> {
+interface SessionClaims {
+  uid: string;
+  sv: unknown;
+  jti: string | null;
+  exp: number | null;
+}
+
+async function readSession(): Promise<SessionClaims | null> {
   const jar = await cookies();
   const token = jar.get(COOKIE)?.value;
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret(), { algorithms: ["HS256"] });
-    return typeof payload.sub === "string" ? { uid: payload.sub, sv: payload.sv } : null;
+    if (typeof payload.sub !== "string") return null;
+    return {
+      uid: payload.sub,
+      sv: payload.sv,
+      jti: typeof payload.jti === "string" ? payload.jti : null,
+      exp: typeof payload.exp === "number" ? payload.exp : null,
+    };
   } catch {
     return null;
   }
+}
+
+/**
+ * Add the current token to the logout denylist before the cookie is cleared. Legacy tokens issued
+ * before `jti` existed cannot be revoked individually; those remain valid until they expire unless
+ * the user's session version is bumped (password reset) or `AUTH_SECRET` is rotated.
+ */
+export async function revokeCurrentSession(): Promise<boolean> {
+  const session = await readSession();
+  if (!session?.jti) return false;
+  const expiresAt = session.exp
+    ? new Date(session.exp * 1000)
+    : new Date(Date.now() + MAX_AGE * 1000);
+  await dbConnect();
+  await RevokedSession.updateOne(
+    { jti: session.jti },
+    { $setOnInsert: { jti: session.jti, expiresAt } },
+    { upsert: true },
+  );
+  return true;
 }
 
 export async function sessionUserId(): Promise<string | null> {
@@ -76,8 +112,12 @@ export async function activeSessionUserId(): Promise<string | null> {
   const session = await readSession();
   if (!session) return null;
   await dbConnect();
-  const user = await User.findById(session.uid).select("status sessionVersion").lean();
+  const [user, revoked] = await Promise.all([
+    User.findById(session.uid).select("status sessionVersion").lean(),
+    session.jti ? RevokedSession.exists({ jti: session.jti }) : Promise.resolve(null),
+  ]);
   if (!user || user.status !== "active") return null;
+  if (revoked) return null;
   if (!isCurrentSessionVersion(session.sv, user.sessionVersion)) return null;
   return session.uid;
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db/mongoose";
-import { activeSessionUserId } from "@/lib/auth/session";
+import { EMAIL_UNVERIFIED_ERROR, verifiedSession } from "@/lib/auth/verification";
 import { rateLimit } from "@/lib/rate-limit/memory";
 import { rateKey } from "@/lib/http/request";
 import { OAUTH_BACKEND } from "@/lib/social/connection-store";
@@ -24,8 +24,12 @@ export const runtime = "nodejs";
  * a redirect exists.
  */
 export async function GET(req: Request) {
-  const uid = await activeSessionUserId();
-  if (!uid) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+  const session = await verifiedSession();
+  if (!session) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+  if (!session.emailVerified) {
+    return NextResponse.json({ error: EMAIL_UNVERIFIED_ERROR, code: "email_unverified" }, { status: 403 });
+  }
+  const uid = session.uid;
   if (!rateLimit(rateKey("social:connect", req, uid), 20, 60_000).ok) {
     return NextResponse.json({ error: "Too many connection attempts. Try again shortly." }, { status: 429 });
   }
